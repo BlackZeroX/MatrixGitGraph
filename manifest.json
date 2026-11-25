@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Matrix Git Graph for GitHub",
+  "version": "2.3.0",
+  "author": "Ortega Avila, Miguel Angel",
+  "description": "Grafo estilo SourceTree con selección múltiple de commits, navegación atrás/adelante/inicio, archivos y diff inline, menú contextual, Tags, Crear PR y PR Revert en tema Matrix al 100%.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://github.com/*",
+    "https://api.github.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://github.com/*"],
+      "js": [
+        "mgg-core.js",
+        "mgg-github.js",
+        "mgg-explorer.js",
+        "content.js"
+      ],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

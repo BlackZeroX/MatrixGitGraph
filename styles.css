@@ -1,0 +1,1933 @@
+/* ===== Botón Sticky ===== */
+#mgg-sticky-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 99990;
+  background: #030a04;
+  color: #00ff41;
+  border: 1.5px solid #00ff41;
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-family: 'Consolas', 'Fira Code', 'Courier New', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  box-shadow: 0 0 12px rgba(0, 255, 65, 0.35), inset 0 0 8px rgba(0, 255, 65, 0.15);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+  display: none;
+  align-items: center;
+  gap: 8px;
+}
+
+#mgg-sticky-btn.mgg-visible {
+  display: inline-flex;
+}
+
+#mgg-sticky-btn:hover {
+  background: #07220b;
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(0, 255, 65, 0.65), inset 0 0 12px rgba(0, 255, 65, 0.25);
+}
+
+/* ===== Fondo y Popup al 90% ===== */
+#mgg-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(0, 6, 2, 0.86);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Consolas', 'Fira Code', 'Courier New', monospace;
+  color: #b7ffca;
+}
+
+#mgg-overlay.mgg-open {
+  display: flex;
+}
+
+#mgg-modal {
+  position: relative;
+  width: 90vw;
+  height: 90vh;
+  background: #040805;
+  border: 1.5px solid #00ff41;
+  border-radius: 8px;
+  box-shadow: 0 0 35px rgba(0, 255, 65, 0.28), inset 0 0 20px rgba(0, 255, 65, 0.06);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Efecto CRT sutil */
+#mgg-modal::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 255, 65, 0.02) 0px,
+    rgba(0, 255, 65, 0.02) 1px,
+    transparent 2px,
+    transparent 4px
+  );
+  z-index: 30;
+}
+
+/* ===== Header y Controles ===== */
+.mgg-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 14px;
+  background: #061208;
+  border-bottom: 1px solid #0d4a1b;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.mgg-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #00ff41;
+  font-size: 13px;
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(0, 255, 65, 0.5);
+}
+
+.mgg-repo-badge {
+  background: #08240e;
+  border: 1px solid #00a82b;
+  color: #7dff9f;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.mgg-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.mgg-input,
+.mgg-select,
+.mgg-textarea {
+  background: #020603;
+  color: #00ff41;
+  border: 1px solid #0f5c22;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 11.5px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.mgg-input:focus,
+.mgg-select:focus,
+.mgg-textarea:focus {
+  border-color: #00ff41;
+  box-shadow: 0 0 6px rgba(0, 255, 65, 0.4);
+}
+
+.mgg-btn {
+  background: #07220c;
+  color: #00ff41;
+  border: 1px solid #00c432;
+  border-radius: 4px;
+  padding: 4px 9px;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.mgg-btn:hover {
+  background: #0d3b16;
+  box-shadow: 0 0 8px rgba(0, 255, 65, 0.45);
+}
+
+.mgg-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.mgg-btn-sm {
+  padding: 3px 7px;
+  font-size: 11px;
+}
+
+.mgg-btn-close {
+  background: #1a0608;
+  color: #ff4d6d;
+  border-color: #9e1b32;
+}
+
+.mgg-btn-close:hover {
+  background: #330b12;
+  box-shadow: 0 0 8px rgba(255, 77, 109, 0.5);
+}
+
+.mgg-btn-sso,
+.mgg-btn-tag {
+  background: #241902;
+  color: #ffca28;
+  border-color: #cc8400;
+}
+
+.mgg-btn-sso:hover,
+.mgg-btn-tag:hover {
+  background: #3d2a04;
+  box-shadow: 0 0 8px rgba(255, 202, 40, 0.45);
+}
+
+.mgg-btn-cyan {
+  background: #041d24;
+  color: #00f0ff;
+  border-color: #009fb3;
+}
+
+.mgg-btn-cyan:hover {
+  background: #073340;
+  box-shadow: 0 0 8px rgba(0, 240, 255, 0.45);
+}
+
+.mgg-btn-active-pill {
+  background: #00ff41;
+  color: #020804;
+  border-color: #00ff41;
+  cursor: default;
+}
+
+.mgg-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #9bf5b0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.mgg-toggle-label input[type='checkbox'] {
+  accent-color: #00ff41;
+  cursor: pointer;
+  margin: 0;
+}
+
+/* ===== Gestor Multi-PAT ===== */
+.mgg-token-drawer {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #041007;
+  border-bottom: 1.5px solid #00c432;
+  box-shadow: inset 0 0 18px rgba(0, 255, 65, 0.08);
+  flex-shrink: 0;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.mgg-token-drawer.mgg-open {
+  display: flex;
+}
+
+.mgg-token-drawer-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.mgg-token-drawer-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #00ff41;
+  letter-spacing: 0.6px;
+}
+
+.mgg-token-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mgg-token-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mgg-token-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  background: #020804;
+  border: 1px solid #0e4a1c;
+  border-radius: 4px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.mgg-token-row.mgg-token-active {
+  border-color: #00ff41;
+  background: #07210d;
+  box-shadow: 0 0 10px rgba(0, 255, 65, 0.2);
+}
+
+.mgg-token-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.mgg-token-alias {
+  color: #d9ffe2;
+  font-weight: 700;
+}
+
+.mgg-token-mask {
+  color: #55bd6d;
+  font-size: 11.5px;
+}
+
+.mgg-token-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid;
+}
+
+.mgg-badge-ok {
+  color: #00ff41;
+  border-color: #00a82b;
+  background: rgba(0, 255, 65, 0.1);
+}
+
+.mgg-badge-warn {
+  color: #ffea00;
+  border-color: #b5a600;
+  background: rgba(255, 234, 0, 0.1);
+}
+
+.mgg-badge-err {
+  color: #ff4d6d;
+  border-color: #a81c36;
+  background: rgba(255, 77, 109, 0.12);
+}
+
+.mgg-badge-saml {
+  color: #ffb300;
+  border-color: #cc8400;
+  background: rgba(255, 179, 0, 0.14);
+}
+
+.mgg-token-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ===== Cuerpo Principal ===== */
+.mgg-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ===== Sidebar: Tree de Ramas + Tags ===== */
+.mgg-sidebar {
+  position: relative;
+  width: 280px;
+  min-width: 210px;
+  max-width: 520px;
+  background: #030905;
+  border-right: 1px solid #0d4a1b;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  gap: 7px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.mgg-sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 15;
+}
+
+.mgg-sidebar-resizer:hover,
+.mgg-sidebar-resizer.mgg-resizing {
+  background: rgba(0, 255, 65, 0.45);
+}
+
+.mgg-sidebar-title {
+  font-size: 11px;
+  color: #00ff41;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mgg-sidebar-row {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.mgg-quick-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.mgg-quick-actions .mgg-btn {
+  flex: 1;
+  justify-content: center;
+  padding: 4px 5px;
+  font-size: 10.5px;
+}
+
+.mgg-prefix-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 58px;
+  overflow-y: auto;
+}
+
+.mgg-prefix-chip {
+  background: #061b0b;
+  color: #7dff9f;
+  border: 1px solid #0f5c22;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.mgg-prefix-chip:hover {
+  background: #0b3014;
+  border-color: #00ff41;
+}
+
+.mgg-prefix-chip.mgg-chip-full {
+  background: #0b3615;
+  border-color: #00ff41;
+  color: #00ff41;
+  box-shadow: 0 0 6px rgba(0, 255, 65, 0.35);
+}
+
+.mgg-prefix-chip.mgg-chip-partial {
+  border-style: dashed;
+  border-color: #00f0ff;
+  color: #7df9ff;
+}
+
+.mgg-branch-list {
+  flex: 1;
+  min-height: 110px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-right: 3px;
+}
+
+.mgg-tree-folder {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mgg-tree-folder-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: #051308;
+  border: 1px solid #0b3315;
+  color: #00ff41;
+  font-size: 11px;
+  font-weight: 700;
+  user-select: none;
+}
+
+.mgg-tree-folder-row:hover {
+  background: #08200d;
+  border-color: #135e26;
+}
+
+.mgg-tree-toggle {
+  background: none;
+  border: none;
+  color: #00ff41;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mgg-tree-folder-row input[type='checkbox'] {
+  accent-color: #00ff41;
+  cursor: pointer;
+  margin: 0;
+}
+
+.mgg-tree-folder-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mgg-tree-count {
+  font-size: 10px;
+  color: #55bd6d;
+  font-weight: 400;
+  flex-shrink: 0;
+}
+
+.mgg-tree-children {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 12px;
+  border-left: 1px dashed rgba(0, 255, 65, 0.22);
+  margin-left: 9px;
+}
+
+.mgg-tree-children.mgg-collapsed {
+  display: none;
+}
+
+.mgg-branch-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: 11.5px;
+  color: #8ceba4;
+  transition: background 0.12s ease, border-color 0.12s ease;
+  user-select: none;
+}
+
+.mgg-branch-item:hover {
+  background: #081c0c;
+  border-color: #114d20;
+}
+
+.mgg-branch-item.mgg-selected {
+  background: #09240f;
+  border-color: #00a82b;
+  color: #d6ffe0;
+}
+
+.mgg-branch-item input[type='checkbox'] {
+  accent-color: #00ff41;
+  cursor: pointer;
+  margin: 0;
+}
+
+.mgg-color-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.mgg-branch-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.mgg-branch-date {
+  font-size: 9.5px;
+  color: #3f9153;
+  flex-shrink: 0;
+}
+
+/* ===== Sección de Tags en Sidebar ===== */
+.mgg-tags-section {
+  border-top: 1px solid #0d4a1b;
+  padding-top: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 34%;
+  flex-shrink: 0;
+}
+
+.mgg-tags-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffca28;
+  cursor: pointer;
+  user-select: none;
+}
+
+.mgg-tags-list {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 155px;
+  padding-right: 3px;
+}
+
+.mgg-tags-list.mgg-collapsed {
+  display: none;
+}
+
+.mgg-tag-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 7px;
+  border-radius: 4px;
+  background: #141002;
+  border: 1px solid #4a3500;
+  color: #ffd966;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.mgg-tag-item:hover {
+  background: #241c03;
+  border-color: #ffca28;
+}
+
+.mgg-tag-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.mgg-tag-item-sha {
+  font-size: 10px;
+  color: #b58d1b;
+  flex-shrink: 0;
+}
+
+/* ===== Área Principal del Grafo ===== */
+.mgg-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #040805;
+  position: relative;
+}
+
+.mgg-status-bar {
+  padding: 5px 12px;
+  font-size: 11px;
+  color: #46c465;
+  background: #050d07;
+  border-bottom: 1px solid #0b3315;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.mgg-mode-pill {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 3px;
+  border: 1px solid #00a82b;
+  color: #00f0ff;
+  background: rgba(0, 240, 255, 0.08);
+}
+
+.mgg-graph-scroll {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+
+.mgg-canvas-wrapper {
+  min-width: max-content;
+  width: 100%;
+  position: relative;
+}
+
+/* Cabecera sticky de Columnas */
+.mgg-grid-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: stretch;
+  background: #061409;
+  border-bottom: 1.5px solid #00c432;
+  height: 32px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.65);
+}
+
+.mgg-branch-cols-header {
+  display: flex;
+  flex-shrink: 0;
+  border-right: 1px solid #0e4a1c;
+}
+
+.mgg-col-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 5px;
+  border-right: 1px dashed rgba(0, 255, 65, 0.18);
+  font-size: 10.5px;
+  font-weight: 700;
+  overflow: hidden;
+  box-sizing: border-box;
+  user-select: none;
+  cursor: grab;
+  transition: background 0.12s ease, opacity 0.12s ease;
+}
+
+.mgg-col-header:active {
+  cursor: grabbing;
+}
+
+.mgg-col-header-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mgg-meta-headers {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  min-width: 520px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #00ff41;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.mgg-meta-col-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border-right: 1px dashed rgba(0, 255, 65, 0.15);
+  overflow: hidden;
+  white-space: nowrap;
+  user-select: none;
+  cursor: grab;
+  transition: background 0.12s ease, opacity 0.12s ease;
+}
+
+.mgg-meta-col-head:active {
+  cursor: grabbing;
+}
+
+.mgg-meta-col-head:last-child {
+  border-right: none;
+}
+
+.mgg-col-dragging {
+  opacity: 0.4;
+  background: rgba(0, 255, 65, 0.14);
+}
+
+.mgg-drop-before {
+  box-shadow: inset 3px 0 0 #00ff41;
+  background: rgba(0, 255, 65, 0.16);
+}
+
+.mgg-drop-after {
+  box-shadow: inset -3px 0 0 #00ff41;
+  background: rgba(0, 255, 65, 0.16);
+}
+
+.mgg-col-resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 7px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 6;
+}
+
+.mgg-col-resizer:hover,
+.mgg-col-resizer.mgg-resizing {
+  background: rgba(0, 255, 65, 0.55);
+}
+
+/* Filas y Capa SVG */
+.mgg-rows-container {
+  position: relative;
+}
+
+.mgg-svg-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.mgg-svg-layer.mgg-hovering .mgg-edge {
+  opacity: 0.22;
+}
+
+.mgg-svg-layer.mgg-hovering .mgg-edge.mgg-edge-hot {
+  opacity: 1;
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+.mgg-svg-layer.mgg-hovering polygon.mgg-edge.mgg-edge-hot {
+  stroke-width: 0;
+}
+
+.mgg-svg-layer.mgg-hovering path.mgg-edge.mgg-edge-hot,
+.mgg-svg-layer.mgg-hovering line.mgg-edge.mgg-edge-hot {
+  stroke-width: 2.8px;
+}
+
+.mgg-commit-row {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(0, 255, 65, 0.06);
+  cursor: pointer;
+  transition: background 0.08s ease;
+  box-sizing: border-box;
+}
+
+.mgg-commit-row:hover {
+  background: rgba(0, 255, 65, 0.09);
+}
+
+.mgg-commit-row.mgg-row-active {
+  background: rgba(0, 255, 65, 0.16);
+  box-shadow: inset 3px 0 0 #00ff41;
+}
+
+.mgg-commit-row.mgg-row-flash {
+  animation: mggFlash 1.2s ease;
+}
+
+@keyframes mggFlash {
+  0% { background: rgba(255, 202, 40, 0.42); }
+  100% { background: rgba(0, 255, 65, 0.16); }
+}
+
+.mgg-graph-spacer {
+  flex-shrink: 0;
+  height: 100%;
+  border-right: 1px solid #0e4a1c;
+  box-sizing: border-box;
+}
+
+.mgg-row-meta {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 520px;
+  font-size: 12px;
+  height: 100%;
+  overflow: hidden;
+}
+
+.mgg-meta-cell {
+  padding: 0 8px;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.mgg-cell-msg {
+  gap: 5px;
+}
+
+.mgg-head-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0px 5px;
+  line-height: 16px;
+  border-radius: 3px;
+  border: 1px solid;
+  white-space: nowrap;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.78);
+}
+
+/* Badge de Tag estilo Matrix Dorado */
+.mgg-tag-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 0px 6px;
+  line-height: 16px;
+  border-radius: 3px;
+  border: 1px solid #e0a800;
+  background: rgba(255, 193, 7, 0.16);
+  color: #ffd54f;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px rgba(255, 193, 7, 0.25);
+}
+
+.mgg-merge-tag {
+  font-size: 9.5px;
+  padding: 0px 4px;
+  line-height: 15px;
+  border-radius: 3px;
+  background: #0d2b15;
+  color: #00f0ff;
+  border: 1px solid #009fb3;
+  flex-shrink: 0;
+}
+
+.mgg-msg-text {
+  color: #d7ffe1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mgg-cell-sha {
+  justify-content: center;
+  color: #00ff41;
+  font-weight: 700;
+  font-size: 11.5px;
+}
+
+.mgg-cell-author {
+  color: #79d48f;
+  font-size: 11.5px;
+}
+
+.mgg-cell-date {
+  justify-content: flex-end;
+  color: #4ea864;
+  font-size: 11px;
+}
+
+/* ===== Panel Inferior de Detalle del Commit ===== */
+.mgg-detail-panel {
+  position: relative;
+  border-top: 1.5px solid #00a82b;
+  background: #051108;
+  padding: 8px 14px;
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  height: 165px;
+  min-height: 95px;
+  max-height: 55vh;
+  overflow-y: auto;
+  flex-shrink: 0;
+  font-size: 11.5px;
+  box-sizing: border-box;
+}
+
+.mgg-detail-panel.mgg-visible {
+  display: flex;
+}
+
+.mgg-detail-resizer {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  width: 100%;
+  height: 6px;
+  cursor: row-resize;
+  z-index: 8;
+}
+
+.mgg-detail-resizer:hover,
+.mgg-detail-resizer.mgg-resizing {
+  background: rgba(0, 255, 65, 0.5);
+}
+
+.mgg-detail-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.mgg-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.mgg-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.mgg-detail-sha {
+  color: #00ff41;
+  font-weight: 700;
+}
+
+.mgg-detail-msg {
+  color: #e4ffea;
+  white-space: pre-wrap;
+  background: #020703;
+  border: 1px solid #0d3d18;
+  border-radius: 4px;
+  padding: 7px 9px;
+  margin: 0;
+  font-family: inherit;
+  font-size: 11.5px;
+}
+
+/* ===== Explorador de Archivos + Merge/Split Diff + Historial ===== */
+.mgg-explorer-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  background: #030805;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mgg-explorer-overlay.mgg-open {
+  display: flex;
+}
+
+.mgg-exp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 14px;
+  background: #061409;
+  border-bottom: 1.5px solid #00c432;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.mgg-exp-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.mgg-exp-commit-meta {
+  font-size: 11.5px;
+  color: #8ceba4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mgg-exp-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.mgg-exp-stats {
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #020804;
+  border: 1px solid #0e4a1c;
+}
+
+.mgg-stat-add { color: #00ff41; }
+.mgg-stat-del { color: #ff4d6d; }
+.mgg-stat-files { color: #00f0ff; }
+
+.mgg-exp-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Panel izquierdo del explorador: árbol/lista de archivos */
+.mgg-exp-sidebar {
+  position: relative;
+  width: 300px;
+  min-width: 200px;
+  max-width: 520px;
+  background: #030a05;
+  border-right: 1px solid #0d4a1b;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  gap: 7px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.mgg-exp-file-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 2px;
+}
+
+.mgg-exp-file-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 7px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: 11.5px;
+  color: #9bf5b0;
+  transition: background 0.1s ease, border-color 0.1s ease;
+}
+
+.mgg-exp-file-item:hover {
+  background: #071e0c;
+  border-color: #104a1e;
+}
+
+.mgg-exp-file-item.mgg-file-active {
+  background: #0a2b12;
+  border-color: #00ff41;
+  color: #e6ffec;
+  box-shadow: inset 2px 0 0 #00ff41;
+}
+
+.mgg-file-status {
+  font-size: 9.5px;
+  font-weight: 700;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid;
+}
+
+.mgg-st-A { color: #00ff41; border-color: #00a82b; background: rgba(0, 255, 65, 0.15); }
+.mgg-st-M { color: #ffca28; border-color: #b88b00; background: rgba(255, 202, 40, 0.15); }
+.mgg-st-D { color: #ff4d6d; border-color: #a81c36; background: rgba(255, 77, 109, 0.16); }
+.mgg-st-R { color: #00f0ff; border-color: #009fb3; background: rgba(0, 240, 255, 0.15); }
+
+.mgg-file-name-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.mgg-file-base {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.mgg-file-dir {
+  font-size: 9.5px;
+  color: #4b9c5e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mgg-file-nums {
+  font-size: 10px;
+  display: inline-flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Área derecha del explorador: barra de navegación + visor Diff / Historial */
+.mgg-exp-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: #020704;
+}
+
+.mgg-exp-subbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #051108;
+  border-bottom: 1px solid #0c3d18;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.mgg-exp-filepath {
+  color: #d9ffe2;
+  font-size: 12px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 180px;
+}
+
+.mgg-exp-tabs {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.mgg-tab-btn {
+  background: #041207;
+  color: #6bc981;
+  border: 1px solid #0e4a1c;
+  border-radius: 4px;
+  padding: 3px 9px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mgg-tab-btn:hover {
+  border-color: #00ff41;
+  color: #00ff41;
+}
+
+.mgg-tab-btn.mgg-tab-active {
+  background: #0a3314;
+  border-color: #00ff41;
+  color: #00ff41;
+  box-shadow: 0 0 8px rgba(0, 255, 65, 0.3);
+}
+
+.mgg-exp-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #7dff9f;
+}
+
+.mgg-exp-viewer {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+
+/* Tablas de Diff Split/Merge y Unificado */
+.mgg-diff-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-family: 'Consolas', 'Fira Code', 'Courier New', monospace;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.mgg-diff-table th {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: #06150a;
+  color: #00ff41;
+  border-bottom: 1px solid #0e4a1c;
+  padding: 5px 8px;
+  font-size: 10.5px;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.mgg-diff-ln {
+  width: 44px;
+  min-width: 44px;
+  padding: 0 6px;
+  text-align: right;
+  color: #3f8a52;
+  background: #030a05;
+  border-right: 1px solid #0b2e13;
+  user-select: none;
+  vertical-align: top;
+}
+
+.mgg-diff-sign {
+  width: 18px;
+  min-width: 18px;
+  text-align: center;
+  user-select: none;
+  vertical-align: top;
+  font-weight: 700;
+}
+
+.mgg-diff-code {
+  padding: 0 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  vertical-align: top;
+  color: #c8f7d4;
+}
+
+.mgg-diff-split-sep {
+  border-right: 1.5px solid #0e4a1c;
+}
+
+.mgg-diff-hunk td {
+  background: #061b18;
+  color: #00f0ff;
+  border-top: 1px solid #0d4b4a;
+  border-bottom: 1px solid #0d4b4a;
+  padding: 4px 8px;
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.mgg-diff-add {
+  background: rgba(0, 255, 65, 0.13);
+  color: #c8ffd6;
+}
+
+.mgg-diff-add-ln {
+  background: rgba(0, 255, 65, 0.2);
+  color: #00ff41;
+}
+
+.mgg-diff-del {
+  background: rgba(255, 77, 109, 0.14);
+  color: #ffc7d2;
+}
+
+.mgg-diff-del-ln {
+  background: rgba(255, 77, 109, 0.22);
+  color: #ff6b86;
+}
+
+.mgg-diff-empty {
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(0, 255, 65, 0.03) 0px,
+    rgba(0, 255, 65, 0.03) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+
+.mgg-change-anchor.mgg-change-active td {
+  box-shadow: inset 0 1px 0 #00ff41, inset 0 -1px 0 #00ff41;
+}
+
+/* Historial por Archivo (Quién editó y Cuándo) */
+.mgg-history-list {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mgg-history-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  background: #041007;
+  border: 1px solid #0f4d1e;
+  border-radius: 5px;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.mgg-history-card:hover {
+  background: #071d0c;
+  border-color: #00ff41;
+}
+
+.mgg-history-card.mgg-history-current {
+  border-color: #00f0ff;
+  box-shadow: inset 3px 0 0 #00f0ff;
+}
+
+.mgg-history-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.mgg-history-msg {
+  color: #e2ffe9;
+  font-size: 12px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mgg-history-meta {
+  font-size: 11px;
+  color: #6cc782;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ===== Mini-Diálogos (Crear Tag / PR Revert) ===== */
+.mgg-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 28;
+  background: rgba(0, 5, 2, 0.78);
+  backdrop-filter: blur(2px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.mgg-dialog-backdrop.mgg-open {
+  display: flex;
+}
+
+.mgg-dialog-box {
+  width: 480px;
+  max-width: 92%;
+  background: #040d06;
+  border: 1.5px solid #00ff41;
+  border-radius: 6px;
+  box-shadow: 0 0 28px rgba(0, 255, 65, 0.35);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mgg-dialog-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #00ff41;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mgg-dialog-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  color: #8ceba4;
+}
+
+.mgg-dialog-cmd {
+  background: #020603;
+  border: 1px dashed #0f5c22;
+  border-radius: 4px;
+  padding: 7px 9px;
+  font-size: 11px;
+  color: #00f0ff;
+  word-break: break-all;
+}
+
+.mgg-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+/* ===== Estados Vacíos / Error ===== */
+.mgg-empty-state {
+  padding: 36px 22px;
+  text-align: center;
+  color: #46c465;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.mgg-error-box {
+  margin: 18px;
+  padding: 13px;
+  border: 1px solid #ff4d6d;
+  background: rgba(51, 8, 16, 0.65);
+  color: #ffb3c1;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.mgg-error-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ===== Scrollbars Matrix ===== */
+#mgg-modal ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+#mgg-modal ::-webkit-scrollbar-track {
+  background: #030704;
+}
+
+#mgg-modal ::-webkit-scrollbar-thumb {
+  background: #0e4f1e;
+  border-radius: 4px;
+}
+
+#mgg-modal ::-webkit-scrollbar-thumb:hover {
+  background: #00ff41;
+}
+
+body.mgg-no-select {
+  user-select: none !important;
+  cursor: col-resize !important;
+}
+
+body.mgg-no-select-row {
+  user-select: none !important;
+  cursor: row-resize !important;
+}
+
+
+
+/* ===== Ajustes v2.2b: Pantalla 100% + Todos los Paneles Redimensionables ===== */
+#mgg-modal {
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+  border: 1px solid #00ff41;
+}
+
+.mgg-token-drawer {
+  position: relative;
+  max-height: 60vh;
+  box-sizing: border-box;
+}
+
+.mgg-drawer-resizer {
+  position: absolute;
+  bottom: -3px;
+  left: 0;
+  width: 100%;
+  height: 6px;
+  cursor: row-resize;
+  z-index: 12;
+}
+
+.mgg-drawer-resizer:hover,
+.mgg-drawer-resizer.mgg-resizing {
+  background: rgba(0, 255, 65, 0.55);
+}
+
+.mgg-sidebar {
+  min-width: 180px;
+  max-width: 55vw;
+}
+
+.mgg-tags-section {
+  position: relative;
+  height: 155px;
+  min-height: 36px;
+  max-height: 70%;
+  padding-top: 9px;
+  box-sizing: border-box;
+}
+
+.mgg-tags-section.mgg-tags-is-collapsed {
+  height: auto !important;
+  min-height: 0;
+}
+
+.mgg-tags-list {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+}
+
+.mgg-tags-resizer {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  width: 100%;
+  height: 6px;
+  cursor: row-resize;
+  z-index: 9;
+}
+
+.mgg-tags-resizer:hover,
+.mgg-tags-resizer.mgg-resizing {
+  background: rgba(0, 255, 65, 0.55);
+}
+
+.mgg-detail-panel {
+  max-height: 78vh;
+}
+
+.mgg-detail-left {
+  min-width: 180px;
+  max-width: 75%;
+}
+
+.mgg-detail-left .mgg-detail-msg {
+  height: 72px;
+  min-height: 34px;
+  max-height: none;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.mgg-detail-msg-resizer {
+  height: 6px;
+  width: 100%;
+  cursor: row-resize;
+  flex-shrink: 0;
+  border-radius: 2px;
+  margin: -2px 0;
+  background: rgba(0, 255, 65, 0.08);
+  transition: background 0.12s ease;
+}
+
+.mgg-detail-msg-resizer:hover,
+.mgg-detail-msg-resizer.mgg-resizing {
+  background: rgba(0, 255, 65, 0.55);
+}
+
+.mgg-exp-sidebar {
+  min-width: 180px;
+  max-width: 65vw;
+}
+
+/* ===== Ajustes v2.3: Navegación (⌂ ◀ ▶ ✕) y Selección Múltiple de Commits ===== */
+.mgg-status-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.mgg-nav-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 5px;
+  background: #030a05;
+  border: 1px solid #0e4a1c;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.mgg-nav-btn {
+  background: #061c0b;
+  color: #00ff41;
+  border: 1px solid #0f5c22;
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 16px;
+  transition: background 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
+}
+
+.mgg-nav-btn:hover:not(:disabled) {
+  background: #0c3615;
+  border-color: #00ff41;
+  box-shadow: 0 0 6px rgba(0, 255, 65, 0.35);
+}
+
+.mgg-nav-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.mgg-nav-btn.mgg-nav-clear {
+  color: #ff6b86;
+  border-color: #6b1424;
+  background: #170508;
+}
+
+.mgg-nav-btn.mgg-nav-clear:hover:not(:disabled) {
+  background: #2e0a11;
+  border-color: #ff4d6d;
+  box-shadow: 0 0 6px rgba(255, 77, 109, 0.4);
+}
+
+.mgg-nav-counter {
+  font-size: 10.5px;
+  color: #00f0ff;
+  padding: 0 5px;
+  min-width: 28px;
+  text-align: center;
+  font-weight: 700;
+}
+
+/* Filas con selección múltiple (Ctrl+Clic / Shift+Clic) */
+.mgg-commit-row.mgg-row-multi {
+  background: rgba(0, 240, 255, 0.11);
+  box-shadow: inset 3px 0 0 #00f0ff;
+}
+
+.mgg-commit-row.mgg-row-multi.mgg-row-active {
+  background: rgba(0, 255, 65, 0.18);
+  box-shadow: inset 3px 0 0 #00ff41;
+}
+
+.mgg-multi-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 3px;
+  border: 1px solid #009fb3;
+  background: rgba(0, 240, 255, 0.14);
+  color: #00f0ff;
+}
+
+/* Garantizar distribución estricta: Izquierda (Descripción + Archivos) | Derecha (Diff Inline) */
+.mgg-detail-body {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mgg-file-commit-count {
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px solid #009fb3;
+  background: rgba(0, 240, 255, 0.12);
+  color: #00f0ff;
+  flex-shrink: 0;
+}
+
+/* Separador de commits dentro del Diff Inline combinado */
+.mgg-multi-commit-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 10px;
+  background: #061812;
+  border-top: 1.5px solid #009fb3;
+  border-bottom: 1px solid #0e4a1c;
+  color: #9bf5b0;
+  font-size: 11px;
+  font-weight: 700;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.mgg-multi-commit-banner:first-child {
+  border-top: none;
+}
+
+.mgg-multi-commit-banner-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== Fix v2.3.1: Proporción 30% / 70%, divisor visible y z-index del menú contextual ===== */
+.mgg-detail-body {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  gap: 0;
+  padding-top: 8px;
+}
+
+.mgg-detail-left {
+  width: 30%;
+  min-width: 220px;
+  max-width: 72%;
+  padding-right: 10px;
+  border-right: none;
+  flex-shrink: 0;
+}
+
+.mgg-detail-v-resizer {
+  position: relative;
+  top: auto;
+  right: auto;
+  width: 10px;
+  height: auto;
+  align-self: stretch;
+  flex-shrink: 0;
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #041208;
+  border-left: 1px solid #0e4a1c;
+  border-right: 1px solid #0e4a1c;
+  margin: 0 6px;
+  border-radius: 3px;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.mgg-detail-v-resizer::after {
+  content: '⋮';
+  color: #2f9e4a;
+  font-size: 14px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.mgg-detail-v-resizer:hover,
+.mgg-detail-v-resizer.mgg-resizing {
+  background: rgba(0, 255, 65, 0.22);
+  border-color: #00ff41;
+}
+
+.mgg-detail-v-resizer:hover::after,
+.mgg-detail-v-resizer.mgg-resizing::after {
+  color: #00ff41;
+}
+
+.mgg-detail-right {
+  flex: 1;
+  min-width: 0;
+  padding-left: 8px;
+}
+
+.mgg-ctx-menu {
+  z-index: 2147483647 !important;
+}
+
+/* ===== Fix v2.3.2: Scroll garantizado en los paneles inferiores ===== */
+.mgg-detail-panel.mgg-visible {
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.mgg-detail-top {
+  flex-shrink: 0;
+}
+
+.mgg-detail-body {
+  display: flex !important;
+  flex-direction: row !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.mgg-detail-left,
+.mgg-detail-right {
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+  height: 100%;
+  overflow: hidden !important;
+}
+
+.mgg-detail-left .mgg-detail-msg {
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  flex-shrink: 0;
+}
+
+.mgg-detail-files-list {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+.mgg-detail-diff-viewer {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  overflow: auto !important;
+}
