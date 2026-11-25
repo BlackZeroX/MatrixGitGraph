@@ -14,6 +14,7 @@
     PARENT_CACHE_STORAGE_KEY: 'mgg_parents_cache_v1',
     REPO_CONFIGS_STORAGE_KEY: 'mgg_repo_configs_v2',
     LEGACY_REPO_PREFS_KEY: 'mgg_repo_prefs_v1',
+    SAVED_REPOS_STORAGE_KEY: 'mgg_saved_repos_v1',
     MAX_CACHED_SHAS_PER_REPO: 3000,
     MAX_NAV_HISTORY: 60,
 
@@ -58,6 +59,12 @@
     autoRotate: true,
     anonRateRemaining: null,
 
+    // Gestor de repositorios (global)
+    savedRepos: [],             // [{ fullName, owner, repo, group, favorite, lastVisitedAt, addedAt }]
+    repoSearch: '',
+    repoGroupFilter: 'all',     // 'all' | 'favorites' | 'ungrouped' | '<grupo>'
+    repoSort: 'recent_desc',    // 'recent_desc' | 'alpha_asc' | 'alpha_desc' | 'fav_first'
+
     // Configuración persistida por repositorio
     hasSavedRepoConfig: false,
     connectionMode: 'auto',     // 'auto' | 'web' | 'api'
@@ -72,8 +79,9 @@
     sidebarWidth: 280,
     tagsHeight: 155,
     tokenDrawerHeight: null,
+    repoDrawerHeight: null,
     detailHeight: 290,
-    detailLeftWidth: 350,
+    detailLeftWidth: 30,
     detailMsgHeight: 72,
     explorerSidebarWidth: 300,
     diffViewMode: 'split',      // 'split' | 'unified'
@@ -271,6 +279,27 @@
     return { owner, repo, fullName: `${owner}/${repo}` };
   }
 
+  function parseRepoInput(raw) {
+    const str = String(raw || '').trim();
+    if (!str) return null;
+
+    let clean = str
+      .replace(/^https?:\/\/(www\.)?github\.com\//i, '')
+      .replace(/^github\.com\//i, '')
+      .replace(/\.git$/i, '')
+      .split(/[?#]/)[0];
+
+    const parts = clean.split('/').map((p) => p.trim()).filter(Boolean);
+    if (parts.length < 2) return null;
+
+    const owner = parts[0];
+    const repo = parts[1];
+    if (CONSTANTS.RESERVED_PATHS.has(owner.toLowerCase())) return null;
+    if (!/^[A-Za-z0-9_.-]+$/.test(owner) || !/^[A-Za-z0-9_.-]+$/.test(repo)) return null;
+
+    return { owner, repo, fullName: `${owner}/${repo}` };
+  }
+
   function extractPrNumberFromMessage(message) {
     const subject = String(message || '').split('\n')[0];
     let m = subject.match(/Merge pull request #(\d+)\b/i);
@@ -338,7 +367,6 @@
     const current = state.navIndex >= 0 ? state.navHistory[state.navIndex] : null;
     if (current && current.key === key) return;
 
-    // Truncar futuro si estábamos navegando hacia atrás
     if (state.navIndex < state.navHistory.length - 1) {
       state.navHistory = state.navHistory.slice(0, state.navIndex + 1);
     }
@@ -354,6 +382,151 @@
     }
     state.navIndex = state.navHistory.length - 1;
   }
+
+  // =====================================================================
+  // GESTOR DE REPOSITORIOS (VISITADOS / GUARDADOS / GRUPOS / FAVORITOS)
+  // =====================================================================
+
+  function loadSavedRepos() {
+    return new Promise((resolve) => {
+      chrome.storage.local.get([CONSTANTS.SAVED_REPOS_STORAGE_KEY], (res) => {
+        const raw = res?.[CONSTANTS.SAVED_REPOS_STORAGE_KEY];
+        if (Array.isArray(raw)) {
+          state.savedRepos = raw
+            .filter((r) => r && r.fullName && r.owner && r.repo)
+            .map((r) => ({
+              fullName: r.fullName,
+              owner: r.owner,
+              repo: r.repo,
+              group: String(r.group || '').trim(),
+              favorite: Boolean(r.favorite),
+              lastVisitedAt: Number(r.lastVisitedAt) || 0,
+              addedAt: Number(r.addedAt) || Date.now()
+            }));
+        } else {
+          state.savedRepos = [];
+        }
+        resolve(state.savedRepos);
+      });
+    });
+  }
+
+  function saveSavedRepos() {
+    chrome.storage.local.set({
+      [CONSTANTS.SAVED_REPOS_STORAGE_KEY]: state.savedRepos
+    });
+  }
+
+  function upsertSavedRepo(repoObj, options = {}) {
+    if (!repoObj || !repoObj.fullName) return null;
+    const keyLower = repoObj.fullName.toLowerCase();
+    const now = Date.now();
+    let existing = state.savedRepos.find((r) => r.fullName.toLowerCase() === keyLower);
+
+    if (existing) {
+      existing.owner = repoObj.owner;
+      existing.repo = repoObj.repo;
+      existing.fullName = repoObj.fullName;
+      if (options.touchVisit !== false) existing.lastVisitedAt = now;
+      if (typeof options.group === 'string') existing.group = options.group.trim();
+      if (typeof options.favorite === 'boolean') existing.favorite = options.favorite;
+    } else {
+      existing = {
+        fullName: repoObj.fullName,
+        owner: repoObj.owner,
+        repo: repoObj.repo,
+        group: String(options.group || '').trim(),
+        favorite: Boolean(options.favorite),
+        lastVisitedAt: options.touchVisit !== false ? now : 0,
+        addedAt: now
+      };
+      state.savedRepos.unshift(existing);
+    }
+
+    saveSavedRepos();
+    return existing;
+  }
+
+  function removeSavedRepo(fullName) {
+    if (!fullName) return false;
+    const keyLower = fullName.toLowerCase();
+    const before = state.savedRepos.length;
+    state.savedRepos = state.savedRepos.filter((r) => r.fullName.toLowerCase() !== keyLower);
+    if (state.savedRepos.length !== before) {
+      saveSavedRepos();
+      return true;
+    }
+    return false;
+  }
+
+  function toggleRepoFavorite(fullName) {
+    const keyLower = String(fullName || '').toLowerCase();
+    const item = state.savedRepos.find((r) => r.fullName.toLowerCase() === keyLower);
+    if (!item) return false;
+    item.favorite = !item.favorite;
+    saveSavedRepos();
+    return item.favorite;
+  }
+
+  function setRepoGroup(fullName, groupName) {
+    const keyLower = String(fullName || '').toLowerCase();
+    const item = state.savedRepos.find((r) => r.fullName.toLowerCase() === keyLower);
+    if (!item) return false;
+    item.group = String(groupName || '').trim();
+    saveSavedRepos();
+    return true;
+  }
+
+  function getRepoGroups() {
+    const set = new Set();
+    for (const r of state.savedRepos) {
+      if (r.group) set.add(r.group);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }
+
+  function getFilteredSortedRepos() {
+    const q = state.repoSearch.trim().toLowerCase();
+    const gf = state.repoGroupFilter;
+
+    const filtered = state.savedRepos.filter((r) => {
+      if (gf === 'favorites' && !r.favorite) return false;
+      if (gf === 'ungrouped' && r.group) return false;
+      if (gf !== 'all' && gf !== 'favorites' && gf !== 'ungrouped' && r.group !== gf) return false;
+
+      if (q) {
+        const hay = `${r.fullName} ${r.group || ''}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+
+    const sortMode = state.repoSort;
+    filtered.sort((a, b) => {
+      if (sortMode === 'fav_first') {
+        if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
+        const diff = (b.lastVisitedAt || 0) - (a.lastVisitedAt || 0);
+        if (diff !== 0) return diff;
+        return a.fullName.localeCompare(b.fullName, undefined, { sensitivity: 'base' });
+      }
+      if (sortMode === 'alpha_asc') {
+        return a.fullName.localeCompare(b.fullName, undefined, { sensitivity: 'base' });
+      }
+      if (sortMode === 'alpha_desc') {
+        return b.fullName.localeCompare(a.fullName, undefined, { sensitivity: 'base' });
+      }
+      // recent_desc
+      const diff = (b.lastVisitedAt || b.addedAt || 0) - (a.lastVisitedAt || a.addedAt || 0);
+      if (diff !== 0) return diff;
+      return a.fullName.localeCompare(b.fullName, undefined, { sensitivity: 'base' });
+    });
+
+    return filtered;
+  }
+
+  // =====================================================================
+  // ORDEN Y ÁRBOL DE RAMAS
+  // =====================================================================
 
   function compareBranchesBySort(a, b) {
     const mode = state.branchSort;
@@ -558,8 +731,9 @@
     state.sidebarWidth = 280;
     state.tagsHeight = 155;
     state.tokenDrawerHeight = null;
+    state.repoDrawerHeight = null;
     state.detailHeight = 290;
-    state.detailLeftWidth = 350;
+    state.detailLeftWidth = 30;
     state.detailMsgHeight = 72;
     state.explorerSidebarWidth = 300;
     state.diffViewMode = 'split';
@@ -617,11 +791,14 @@
             if (typeof cfg.tokenDrawerHeight === 'number' && cfg.tokenDrawerHeight >= 110) {
               state.tokenDrawerHeight = Math.min(550, cfg.tokenDrawerHeight);
             }
+            if (typeof cfg.repoDrawerHeight === 'number' && cfg.repoDrawerHeight >= 140) {
+              state.repoDrawerHeight = Math.min(600, cfg.repoDrawerHeight);
+            }
             if (typeof cfg.detailHeight === 'number' && cfg.detailHeight >= 150) {
               state.detailHeight = Math.min(720, cfg.detailHeight);
             }
-            if (typeof cfg.detailLeftWidth === 'number' && cfg.detailLeftWidth >= 180) {
-              state.detailLeftWidth = Math.min(920, cfg.detailLeftWidth);
+            if (typeof cfg.detailLeftWidth === 'number' && cfg.detailLeftWidth >= 15 && cfg.detailLeftWidth <= 75) {
+              state.detailLeftWidth = cfg.detailLeftWidth;
             }
             if (typeof cfg.detailMsgHeight === 'number' && cfg.detailMsgHeight >= 34) {
               state.detailMsgHeight = Math.min(400, cfg.detailMsgHeight);
@@ -695,6 +872,7 @@
       sidebarWidth: state.sidebarWidth,
       tagsHeight: state.tagsHeight,
       tokenDrawerHeight: state.tokenDrawerHeight,
+      repoDrawerHeight: state.repoDrawerHeight,
       detailHeight: state.detailHeight,
       detailLeftWidth: state.detailLeftWidth,
       detailMsgHeight: state.detailMsgHeight,
@@ -769,6 +947,7 @@
     isTokenCurrentlyExhausted,
     sanitizeMetaOrder,
     parseGitHubRepo,
+    parseRepoInput,
     extractPrNumberFromMessage,
     getBranchColor,
     getBranchWidth,
@@ -776,6 +955,14 @@
     getTagsForSha,
     resetNavigationAndSelection,
     pushNavHistory,
+    loadSavedRepos,
+    saveSavedRepos,
+    upsertSavedRepo,
+    removeSavedRepo,
+    toggleRepoFavorite,
+    setRepoGroup,
+    getRepoGroups,
+    getFilteredSortedRepos,
     compareBranchesBySort,
     getOrderedSelectedBranches,
     buildBranchTree,

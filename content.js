@@ -18,7 +18,7 @@
   };
 
   // =====================================================================
-  // INTERFAZ PRINCIPAL (100% PANTALLA + NAVEGACIÓN + PANELES REDIMENSIONABLES)
+  // INTERFAZ PRINCIPAL (100% PANTALLA + SWITCHER/GESTOR DE REPOS + NAVEGACIÓN)
   // =====================================================================
 
   function ensureUI() {
@@ -38,8 +38,11 @@
         <div id="mgg-modal" role="dialog" aria-modal="true" aria-label="Matrix Git Graph">
           <div class="mgg-header">
             <div class="mgg-title">
-              <span>>_ MATRIX // GIT GRAPH v2.3</span>
-              <span class="mgg-repo-badge" id="mgg-repo-label"></span>
+              <span>>_ MATRIX // GIT GRAPH v2.4</span>
+              <div class="mgg-repo-switcher" title="Cambiar entre repositorios visitados o guardados">
+                <select id="mgg-repo-select" class="mgg-repo-select" aria-label="Seleccionar repositorio"></select>
+                <button type="button" id="mgg-repo-quick-del" class="mgg-repo-quick-del" title="Eliminar repositorio actual de la lista">✕</button>
+              </div>
               <span style="font-size:10.5px; color:#55bd6d; font-weight:400;">by Ortega Avila, Miguel Angel</span>
             </div>
             <div class="mgg-controls">
@@ -73,12 +76,64 @@
               </select>
               <button type="button" id="mgg-load-more-btn" class="mgg-btn" title="Aumentar profundidad de commits">+50</button>
               <button type="button" id="mgg-create-pr-header-btn" class="mgg-btn mgg-btn-cyan" title="Crear un nuevo Pull Request entre ramas">🔀 Crear PR</button>
+              <button type="button" id="mgg-repos-toggle" class="mgg-btn" title="Gestionar, buscar y organizar repositorios">📚 Repos (0)</button>
               <button type="button" id="mgg-tokens-toggle" class="mgg-btn">🔑 PATs (0)</button>
               <button type="button" id="mgg-refresh-btn" class="mgg-btn">↻ Recargar</button>
               <button type="button" id="mgg-close-btn" class="mgg-btn mgg-btn-close">✕ Cerrar</button>
             </div>
           </div>
 
+          <!-- Gestor de Repositorios (Desplegable + Redimensionable) -->
+          <div id="mgg-repo-drawer" class="mgg-repo-drawer">
+            <div class="mgg-repo-drawer-top">
+              <span class="mgg-repo-drawer-title">GESTOR DE REPOSITORIOS VISITADOS Y GUARDADOS</span>
+              <span id="mgg-repo-drawer-count" style="font-size:11px; color:#00f0ff;">0 repositorios</span>
+            </div>
+
+            <div class="mgg-repo-add-form">
+              <input
+                type="text"
+                id="mgg-add-repo-input"
+                class="mgg-input"
+                placeholder="Agregar repo: owner/repo o URL de GitHub..."
+                style="flex: 1; min-width: 240px;"
+              />
+              <input
+                type="text"
+                id="mgg-add-repo-group"
+                class="mgg-input"
+                placeholder="Grupo opcional (ej. Trabajo, Personal)"
+                style="width: 210px;"
+              />
+              <button type="button" id="mgg-add-repo-btn" class="mgg-btn">+ Agregar Repo</button>
+            </div>
+
+            <div class="mgg-repo-toolbar">
+              <input
+                type="text"
+                id="mgg-repo-search"
+                class="mgg-input"
+                placeholder="Buscar por nombre o grupo..."
+                style="flex: 1; min-width: 200px;"
+              />
+              <select id="mgg-repo-group-filter" class="mgg-select" title="Filtrar por grupo o favoritos">
+                <option value="all">Filtro: Todos</option>
+                <option value="favorites">Filtro: ★ Favoritos</option>
+                <option value="ungrouped">Filtro: Sin grupo</option>
+              </select>
+              <select id="mgg-repo-sort" class="mgg-select" title="Ordenar repositorios">
+                <option value="recent_desc">Orden: Recientes ↓</option>
+                <option value="fav_first">Orden: Favoritos primero</option>
+                <option value="alpha_asc">Orden: Alfabético (A → Z)</option>
+                <option value="alpha_desc">Orden: Alfabético (Z → A)</option>
+              </select>
+            </div>
+
+            <div id="mgg-repo-list" class="mgg-repo-list"></div>
+            <div class="mgg-repo-drawer-resizer" id="mgg-repo-drawer-resizer" title="Arrastra para redimensionar gestor de repos (doble clic restablece)"></div>
+          </div>
+
+          <!-- Pool de Tokens PAT -->
           <div id="mgg-token-drawer" class="mgg-token-drawer">
             <div class="mgg-token-drawer-top">
               <span class="mgg-token-drawer-title">POOL DE TOKENS GITHUB (PAT) + SOPORTE SAML SSO</span>
@@ -207,6 +262,242 @@
       sel.appendChild(opt);
     }
     sel.value = valStr;
+  }
+
+  // =====================================================================
+  // SWITCHER Y GESTOR DE REPOSITORIOS
+  // =====================================================================
+
+  function renderRepoSwitcher() {
+    if (!ui.overlay) return;
+    const selectEl = ui.overlay.querySelector('#mgg-repo-select');
+    const delBtn = ui.overlay.querySelector('#mgg-repo-quick-del');
+    const toggleBtn = ui.overlay.querySelector('#mgg-repos-toggle');
+
+    if (toggleBtn) toggleBtn.textContent = `📚 Repos (${state.savedRepos.length})`;
+    if (!selectEl) return;
+
+    const currentFull = state.repo?.fullName || '';
+    const sortedForDropdown = [...state.savedRepos].sort((a, b) => {
+      if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
+      const diff = (b.lastVisitedAt || 0) - (a.lastVisitedAt || 0);
+      if (diff !== 0) return diff;
+      return a.fullName.localeCompare(b.fullName, undefined, { sensitivity: 'base' });
+    });
+
+    const hasCurrentInSaved = sortedForDropdown.some(
+      (r) => r.fullName.toLowerCase() === currentFull.toLowerCase()
+    );
+
+    const options = [];
+    if (currentFull && !hasCurrentInSaved) {
+      options.push(
+        `<option value="${MGG.escapeHtml(currentFull)}" selected>${MGG.escapeHtml(
+          currentFull
+        )} (actual)</option>`
+      );
+    }
+
+    for (const r of sortedForDropdown) {
+      const isSelected = r.fullName.toLowerCase() === currentFull.toLowerCase();
+      const star = r.favorite ? '★ ' : '';
+      const grp = r.group ? ` [${r.group}]` : '';
+      options.push(
+        `<option value="${MGG.escapeHtml(r.fullName)}" ${
+          isSelected ? 'selected' : ''
+        }>${star}${MGG.escapeHtml(r.fullName)}${MGG.escapeHtml(grp)}</option>`
+      );
+    }
+
+    if (options.length === 0) {
+      options.push('<option value="">Sin repositorios</option>');
+    }
+
+    selectEl.innerHTML = options.join('');
+    if (delBtn) delBtn.disabled = !hasCurrentInSaved;
+  }
+
+  function renderRepoManagerList() {
+    if (!ui.overlay) return;
+    const listEl = ui.overlay.querySelector('#mgg-repo-list');
+    const countEl = ui.overlay.querySelector('#mgg-repo-drawer-count');
+    const groupFilterSel = ui.overlay.querySelector('#mgg-repo-group-filter');
+    if (!listEl || !groupFilterSel) return;
+
+    // Actualizar opciones de grupos en el filtro
+    const groups = MGG.getRepoGroups();
+    const prevVal = state.repoGroupFilter;
+    const baseOpts = [
+      '<option value="all">Filtro: Todos</option>',
+      '<option value="favorites">Filtro: ★ Favoritos</option>',
+      '<option value="ungrouped">Filtro: Sin grupo</option>'
+    ];
+    for (const g of groups) {
+      baseOpts.push(
+        `<option value="${MGG.escapeHtml(g)}">Grupo: ${MGG.escapeHtml(g)}</option>`
+      );
+    }
+    groupFilterSel.innerHTML = baseOpts.join('');
+    if (['all', 'favorites', 'ungrouped', ...groups].includes(prevVal)) {
+      groupFilterSel.value = prevVal;
+    } else {
+      state.repoGroupFilter = 'all';
+      groupFilterSel.value = 'all';
+    }
+
+    const filtered = MGG.getFilteredSortedRepos();
+    if (countEl) {
+      countEl.textContent = `${filtered.length}/${state.savedRepos.length} repositorio(s)`;
+    }
+
+    if (filtered.length === 0) {
+      listEl.innerHTML =
+        '<div style="font-size:11.5px; color:#55bd6d; padding:10px 4px;">No hay repositorios que coincidan con el filtro actual.</div>';
+      return;
+    }
+
+    const currentFull = (state.repo?.fullName || '').toLowerCase();
+
+    listEl.innerHTML = filtered
+      .map((r) => {
+        const isActive = r.fullName.toLowerCase() === currentFull;
+        const lastVisit = r.lastVisitedAt ? MGG.formatDate(r.lastVisitedAt) : 'Sin visitar';
+        const groupBadge = r.group
+          ? `<span class="mgg-repo-group-badge">${MGG.escapeHtml(r.group)}</span>`
+          : '';
+        const switchBtn = isActive
+          ? '<span class="mgg-btn mgg-btn-sm mgg-btn-active-pill">ACTIVO</span>'
+          : `<button type="button" class="mgg-btn mgg-btn-sm mgg-repo-switch-btn" data-repo="${MGG.escapeHtml(
+              r.fullName
+            )}">Cargar</button>`;
+
+        return `
+          <div class="mgg-repo-row ${isActive ? 'mgg-repo-active' : ''}">
+            <div class="mgg-repo-row-info">
+              <button type="button" class="mgg-repo-fav-btn ${
+                r.favorite ? 'mgg-is-fav' : ''
+              }" data-fav-repo="${MGG.escapeHtml(r.fullName)}" title="${
+          r.favorite ? 'Quitar de favoritos' : 'Marcar como favorito'
+        }">${r.favorite ? '★' : '☆'}</button>
+              <span class="mgg-repo-row-name" data-switch-repo="${MGG.escapeHtml(
+                r.fullName
+              )}" title="Clic para cargar ${MGG.escapeHtml(r.fullName)}">${MGG.escapeHtml(
+          r.fullName
+        )}</span>
+              ${groupBadge}
+              <span class="mgg-repo-last-visit">${MGG.escapeHtml(lastVisit)}</span>
+            </div>
+            <div class="mgg-repo-row-actions">
+              ${switchBtn}
+              <button type="button" class="mgg-btn mgg-btn-sm mgg-repo-edit-grp" data-grp-repo="${MGG.escapeHtml(
+                r.fullName
+              )}" title="Asignar o cambiar grupo">🏷 Grupo</button>
+              <a href="https://github.com/${MGG.escapeHtml(
+                r.fullName
+              )}" target="_blank" rel="noopener noreferrer" class="mgg-btn mgg-btn-sm">GitHub ↗</a>
+              <button type="button" class="mgg-btn mgg-btn-sm mgg-btn-close mgg-repo-del-btn" data-del-repo="${MGG.escapeHtml(
+                r.fullName
+              )}">Eliminar</button>
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+
+    listEl.querySelectorAll('.mgg-repo-fav-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const name = btn.getAttribute('data-fav-repo');
+        MGG.toggleRepoFavorite(name);
+        renderRepoSwitcher();
+        renderRepoManagerList();
+      });
+    });
+
+    listEl.querySelectorAll('.mgg-repo-switch-btn, .mgg-repo-row-name').forEach((el) => {
+      el.addEventListener('click', () => {
+        const name = el.getAttribute('data-repo') || el.getAttribute('data-switch-repo');
+        const parsed = MGG.parseRepoInput(name);
+        if (parsed) switchToRepo(parsed);
+      });
+    });
+
+    listEl.querySelectorAll('.mgg-repo-edit-grp').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const name = btn.getAttribute('data-grp-repo');
+        const curr = state.savedRepos.find((r) => r.fullName.toLowerCase() === name.toLowerCase());
+        const nextGrp = window.prompt(
+          `Grupo / categoría para ${name} (déjalo vacío para quitar grupo):`,
+          curr?.group || ''
+        );
+        if (nextGrp === null) return;
+        MGG.setRepoGroup(name, nextGrp);
+        renderRepoSwitcher();
+        renderRepoManagerList();
+      });
+    });
+
+    listEl.querySelectorAll('.mgg-repo-del-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const name = btn.getAttribute('data-del-repo');
+        MGG.removeSavedRepo(name);
+        renderRepoSwitcher();
+        renderRepoManagerList();
+        setStatus(`Repositorio "${name}" eliminado de la lista.`);
+      });
+    });
+  }
+
+  function addRepoFromForm() {
+    const repoInput = ui.overlay?.querySelector('#mgg-add-repo-input');
+    const groupInput = ui.overlay?.querySelector('#mgg-add-repo-group');
+    if (!repoInput) return;
+
+    const parsed = MGG.parseRepoInput(repoInput.value);
+    if (!parsed) {
+      setStatus('Formato inválido. Usa "owner/repo" o pega una URL válida de GitHub.');
+      return;
+    }
+
+    const group = groupInput?.value?.trim() || '';
+    MGG.upsertSavedRepo(parsed, { group, touchVisit: false });
+    repoInput.value = '';
+    if (groupInput) groupInput.value = '';
+
+    renderRepoSwitcher();
+    renderRepoManagerList();
+    setStatus(`Repositorio "${parsed.fullName}" agregado a tu lista.`);
+  }
+
+  async function switchToRepo(targetRepoObj) {
+    if (!targetRepoObj || !targetRepoObj.fullName) return;
+    MGG.explorer.closeContextMenu();
+    MGG.explorer.close();
+    MGG.explorer.closeDialog();
+
+    state.repo = {
+      owner: targetRepoObj.owner,
+      repo: targetRepoObj.repo,
+      fullName: targetRepoObj.fullName
+    };
+
+    MGG.upsertSavedRepo(state.repo, { touchVisit: true });
+
+    state.branches = [];
+    state.tags = [];
+    state.tagsBySha.clear();
+    state.orderedCommits = [];
+    state.commitMap.clear();
+    state.branchHeadMap.clear();
+    MGG.resetNavigationAndSelection();
+    state.explorer.commitDiffCache.clear();
+    state.explorer.fileHistoryCache.clear();
+
+    await MGG.loadRepoConfig(state.repo.fullName);
+    await MGG.loadRepoParentsCache(state.repo.fullName);
+    updateControlsUI();
+    renderRepoSwitcher();
+    renderRepoManagerList();
+    loadRepoData();
   }
 
   // =====================================================================
@@ -340,13 +631,12 @@
       return;
     }
 
-    // Clic simple
     state.lastAnchorSha = sha;
     applySelection([sha], sha, { pushHistory: true });
   }
 
   // =====================================================================
-  // REDIMENSIONAMIENTO DE PANELES (SIDEBAR, TAGS, DRAWER PATS)
+  // REDIMENSIONAMIENTO DE PANELES (SIDEBAR, TAGS, DRAWER PATS, DRAWER REPOS)
   // =====================================================================
 
   function bindPanelResizers() {
@@ -456,6 +746,41 @@
         MGG.saveCurrentRepoConfig();
       });
     }
+
+    const repoDrawer = ui.overlay.querySelector('#mgg-repo-drawer');
+    const repoDrawerHandle = ui.overlay.querySelector('#mgg-repo-drawer-resizer');
+    if (repoDrawer && repoDrawerHandle) {
+      if (state.repoDrawerHeight) repoDrawer.style.height = `${state.repoDrawerHeight}px`;
+      repoDrawerHandle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        const startY = e.clientY;
+        const startH = repoDrawer.getBoundingClientRect().height;
+        repoDrawerHandle.classList.add('mgg-resizing');
+        document.body.classList.add('mgg-no-select-row');
+
+        const onMove = (ev) => {
+          const maxH = Math.round(window.innerHeight * 0.62);
+          const nextH = Math.min(maxH, Math.max(150, Math.round(startH + (ev.clientY - startY))));
+          state.repoDrawerHeight = nextH;
+          repoDrawer.style.height = `${nextH}px`;
+        };
+        const onUp = () => {
+          repoDrawerHandle.classList.remove('mgg-resizing');
+          document.body.classList.remove('mgg-no-select-row');
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+          MGG.saveCurrentRepoConfig();
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+      });
+
+      repoDrawerHandle.addEventListener('dblclick', () => {
+        state.repoDrawerHeight = null;
+        repoDrawer.style.height = '';
+        MGG.saveCurrentRepoConfig();
+      });
+    }
   }
 
   function bindModalEvents() {
@@ -493,6 +818,57 @@
       }
     });
 
+    // Eventos del Switcher y Gestor de Repositorios
+    ui.overlay.querySelector('#mgg-repo-select').addEventListener('change', (e) => {
+      const parsed = MGG.parseRepoInput(e.target.value);
+      if (parsed && (!state.repo || parsed.fullName.toLowerCase() !== state.repo.fullName.toLowerCase())) {
+        switchToRepo(parsed);
+      }
+    });
+
+    ui.overlay.querySelector('#mgg-repo-quick-del').addEventListener('click', () => {
+      if (!state.repo?.fullName) return;
+      const target = state.repo.fullName;
+      if (MGG.removeSavedRepo(target)) {
+        renderRepoSwitcher();
+        renderRepoManagerList();
+        setStatus(`Repositorio "${target}" eliminado de la lista.`);
+      }
+    });
+
+    ui.overlay.querySelector('#mgg-repos-toggle').addEventListener('click', () => {
+      const repoDrawer = ui.overlay.querySelector('#mgg-repo-drawer');
+      const tokenDrawer = ui.overlay.querySelector('#mgg-token-drawer');
+      const willOpen = !repoDrawer.classList.contains('mgg-open');
+      if (willOpen) tokenDrawer.classList.remove('mgg-open');
+      repoDrawer.classList.toggle('mgg-open', willOpen);
+      if (willOpen) renderRepoManagerList();
+    });
+
+    ui.overlay.querySelector('#mgg-add-repo-btn').addEventListener('click', addRepoFromForm);
+    ui.overlay.querySelector('#mgg-add-repo-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') addRepoFromForm();
+    });
+    ui.overlay.querySelector('#mgg-add-repo-group').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') addRepoFromForm();
+    });
+
+    ui.overlay.querySelector('#mgg-repo-search').addEventListener('input', (e) => {
+      state.repoSearch = e.target.value;
+      renderRepoManagerList();
+    });
+
+    ui.overlay.querySelector('#mgg-repo-group-filter').addEventListener('change', (e) => {
+      state.repoGroupFilter = e.target.value;
+      renderRepoManagerList();
+    });
+
+    ui.overlay.querySelector('#mgg-repo-sort').addEventListener('change', (e) => {
+      state.repoSort = e.target.value;
+      renderRepoManagerList();
+    });
+
+    // Navegación
     ui.overlay.querySelector('#mgg-nav-home').addEventListener('click', navigateHome);
     ui.overlay.querySelector('#mgg-nav-back').addEventListener('click', () => {
       navigateToHistoryIndex(state.navIndex - 1);
@@ -552,8 +928,12 @@
     });
 
     ui.overlay.querySelector('#mgg-tokens-toggle').addEventListener('click', () => {
-      ui.overlay.querySelector('#mgg-token-drawer').classList.toggle('mgg-open');
-      renderTokenList();
+      const tokenDrawer = ui.overlay.querySelector('#mgg-token-drawer');
+      const repoDrawer = ui.overlay.querySelector('#mgg-repo-drawer');
+      const willOpen = !tokenDrawer.classList.contains('mgg-open');
+      if (willOpen) repoDrawer.classList.remove('mgg-open');
+      tokenDrawer.classList.toggle('mgg-open', willOpen);
+      if (willOpen) renderTokenList();
     });
 
     ui.overlay.querySelector('#mgg-auto-rotate-chk').addEventListener('change', (e) => {
@@ -743,6 +1123,8 @@
     if (tagsSection) tagsSection.style.height = `${state.tagsHeight}px`;
     const drawer = ui.overlay.querySelector('#mgg-token-drawer');
     if (drawer) drawer.style.height = state.tokenDrawerHeight ? `${state.tokenDrawerHeight}px` : '';
+    const repoDrawer = ui.overlay.querySelector('#mgg-repo-drawer');
+    if (repoDrawer) repoDrawer.style.height = state.repoDrawerHeight ? `${state.repoDrawerHeight}px` : '';
     const searchInput = ui.overlay.querySelector('#mgg-branch-search');
     if (searchInput && searchInput.value !== state.branchFilter) {
       searchInput.value = state.branchFilter;
@@ -750,6 +1132,7 @@
     syncLimitSelectUI();
     updateRateDisplay();
     updateNavBarUI();
+    renderRepoSwitcher();
     renderTokenList();
   }
 
@@ -871,37 +1254,29 @@
   }
 
   async function openModal() {
-    const repo = MGG.parseGitHubRepo();
-    if (!repo) return;
+    const pageRepo = MGG.parseGitHubRepo();
     ensureUI();
 
-    const repoChanged = !state.repo || state.repo.fullName !== repo.fullName;
-    state.repo = repo;
-    ui.overlay.querySelector('#mgg-repo-label').textContent = repo.fullName;
+    await Promise.all([MGG.loadGlobalTokens(), MGG.loadSavedRepos()]);
+
+    const targetRepo = pageRepo || state.repo || state.savedRepos[0] || null;
+    if (!targetRepo) return;
+
+    const repoChanged = !state.repo || state.repo.fullName !== targetRepo.fullName;
+    state.repo = {
+      owner: targetRepo.owner,
+      repo: targetRepo.repo,
+      fullName: targetRepo.fullName
+    };
+
+    MGG.upsertSavedRepo(state.repo, { touchVisit: true });
     ui.overlay.classList.add('mgg-open');
 
-    await MGG.loadGlobalTokens();
-
     if (repoChanged || state.branches.length === 0) {
-      MGG.explorer.closeContextMenu();
-      MGG.explorer.close();
-      MGG.explorer.closeDialog();
-      state.branches = [];
-      state.tags = [];
-      state.tagsBySha.clear();
-      state.orderedCommits = [];
-      state.commitMap.clear();
-      state.branchHeadMap.clear();
-      MGG.resetNavigationAndSelection();
-      state.explorer.commitDiffCache.clear();
-      state.explorer.fileHistoryCache.clear();
-
-      await MGG.loadRepoConfig(repo.fullName);
-      await MGG.loadRepoParentsCache(repo.fullName);
-      updateControlsUI();
-      loadRepoData();
+      await switchToRepo(state.repo);
     } else {
       updateControlsUI();
+      renderRepoSwitcher();
     }
   }
 
@@ -1824,7 +2199,6 @@
     state.orderedCommits = orderedCommits;
     state.isLoading = false;
 
-    // Limpiar de la selección SHAs que ya no estén visibles
     for (const s of Array.from(state.selectedShas)) {
       if (!commitMap.has(s)) state.selectedShas.delete(s);
     }
@@ -2985,8 +3359,7 @@
   }
 
   // =====================================================================
-  // PANEL INFERIOR: IZQUIERDA (DESCRIPCIÓN + ARCHIVOS) | DERECHA (DIFF INLINE)
-  // SOPORTA 1 COMMIT O SELECCIÓN MÚLTIPLE DE COMMITS
+  // PANEL INFERIOR: 30% IZQUIERDA (DESCRIPCIÓN + ARCHIVOS) | 70% DERECHA (DIFF INLINE)
   // =====================================================================
 
   function bindDetailPanelResizers(panel) {
@@ -3024,21 +3397,26 @@
     }
 
     const leftPane = panel.querySelector('.mgg-detail-left');
+    const bodyEl = panel.querySelector('.mgg-detail-body');
     const vHandle = panel.querySelector('.mgg-detail-v-resizer');
-    if (leftPane && vHandle) {
-      leftPane.style.width = `${state.detailLeftWidth}px`;
+    if (leftPane && bodyEl && vHandle) {
+      const initialPct =
+        typeof state.detailLeftWidth === 'number' && state.detailLeftWidth >= 15 && state.detailLeftWidth <= 75
+          ? state.detailLeftWidth
+          : 30;
+      leftPane.style.width = `${initialPct}%`;
+
       vHandle.addEventListener('mousedown', (e) => {
         e.preventDefault();
-        const startX = e.clientX;
-        const startW = leftPane.getBoundingClientRect().width;
+        const bodyRect = bodyEl.getBoundingClientRect();
         vHandle.classList.add('mgg-resizing');
         document.body.classList.add('mgg-no-select');
 
         const onMove = (ev) => {
-          const maxW = Math.round(panel.getBoundingClientRect().width * 0.75);
-          const nextW = Math.min(maxW, Math.max(180, Math.round(startW + (ev.clientX - startX))));
-          state.detailLeftWidth = nextW;
-          leftPane.style.width = `${nextW}px`;
+          const rawPct = ((ev.clientX - bodyRect.left) / bodyRect.width) * 100;
+          const nextPct = Math.min(72, Math.max(18, Math.round(rawPct)));
+          state.detailLeftWidth = nextPct;
+          leftPane.style.width = `${nextPct}%`;
         };
         const onUp = () => {
           vHandle.classList.remove('mgg-resizing');
@@ -3052,8 +3430,8 @@
       });
 
       vHandle.addEventListener('dblclick', () => {
-        state.detailLeftWidth = 350;
-        leftPane.style.width = '350px';
+        state.detailLeftWidth = 30;
+        leftPane.style.width = '30%';
         MGG.saveCurrentRepoConfig();
       });
     }
@@ -3232,7 +3610,6 @@
       blobLink.href = file.blobUrl || '#';
     }
 
-    // Modo 1 commit
     if (detailState.commits.length <= 1) {
       const entry = file.entries[0];
       const patch = entry?.file?.patch || '';
@@ -3249,7 +3626,6 @@
       return;
     }
 
-    // Modo selección múltiple: renderizar los cambios de cada commit que tocó este archivo
     const sectionsHtml = file.entries
       .map(({ commit, file: cFile }, eIdx) => {
         const diffBlock = cFile.patch
@@ -3295,7 +3671,6 @@
       return;
     }
 
-    // Ordenar commits seleccionados siguiendo el orden del grafo (más reciente primero)
     const selectedCommits = state.orderedCommits.filter((c) => state.selectedShas.has(c.sha));
     if (selectedCommits.length === 0) {
       panel.classList.remove('mgg-visible');
@@ -3516,7 +3891,6 @@
       MGG.explorer.openForCommit(targetCommit, currentFile?.filename || '');
     });
 
-    // Descargar diffs de todos los commits seleccionados (en lotes para no saturar)
     const diffResults = [];
     const batchSize = 4;
     for (let i = 0; i < selectedCommits.length; i += batchSize) {
@@ -3624,27 +3998,22 @@
     showCommitDetails
   });
 
-  function syncVisibility() {
+  async function syncVisibility() {
     ensureUI();
     const repo = MGG.parseGitHubRepo();
     if (repo) {
       ui.stickyBtn.classList.add('mgg-visible');
-      if (state.repo && state.repo.fullName !== repo.fullName) {
-        if (ui.overlay.classList.contains('mgg-open')) {
-          openModal();
-        } else {
-          state.repo = null;
-          state.branches = [];
-          state.tags = [];
-          state.tagsBySha.clear();
-          state.orderedCommits = [];
-          state.commitMap.clear();
-          MGG.resetNavigationAndSelection();
-        }
-      }
+      await MGG.loadSavedRepos();
+      MGG.upsertSavedRepo(repo, { touchVisit: true });
+      renderRepoSwitcher();
     } else {
-      ui.stickyBtn.classList.remove('mgg-visible');
-      closeModal();
+      await MGG.loadSavedRepos();
+      if (state.savedRepos.length > 0) {
+        ui.stickyBtn.classList.add('mgg-visible');
+      } else {
+        ui.stickyBtn.classList.remove('mgg-visible');
+        closeModal();
+      }
     }
   }
 
