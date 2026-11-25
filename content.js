@@ -1694,7 +1694,7 @@
         )}${shortSha ? ` (${shortSha})` : ''} — Clic para ubicar | Clic derecho para opciones">
             <span class="mgg-tag-item-name">🏷 ${MGG.escapeHtml(t.name)}</span>
             <span class="mgg-tag-item-sha">${MGG.escapeHtml(shortSha)}</span>
-            <button type="button" class="mgg-tag-item-del" data-del-tag="${MGG.escapeHtml(
+            <button type="button" class="mgg-btn mgg-btn-sm mgg-btn-close mgg-tag-item-del" data-del-tag="${MGG.escapeHtml(
               t.name
             )}" data-del-sha="${MGG.escapeHtml(t.sha)}" title="Eliminar tag ${MGG.escapeHtml(
           t.name
