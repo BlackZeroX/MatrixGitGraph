@@ -324,7 +324,6 @@
     const groupFilterSel = ui.overlay.querySelector('#mgg-repo-group-filter');
     if (!listEl || !groupFilterSel) return;
 
-    // Actualizar opciones de grupos en el filtro
     const groups = MGG.getRepoGroups();
     const prevVal = state.repoGroupFilter;
     const baseOpts = [
@@ -1895,6 +1894,7 @@
       commit.subLane = 0;
     }
 
+    // Marcar la cadena principal (first-parent) de cada rama seleccionada
     selected.forEach((branchName) => {
       let currSha = branchHeadMap.get(branchName);
       const visited = new Set();
@@ -1906,26 +1906,26 @@
       }
     });
 
+    // 1. Asignar primero los commits que pertenecen a la cadena first-parent de alguna rama
     for (const commit of commitMap.values()) {
-      let assignedCol = -1;
-
-      if (commit.headBranches.length > 0) {
-        assignedCol = selected.indexOf(commit.headBranches[0]);
-      }
-
-      if (assignedCol === -1 && commit.firstParentBranches.size > 0) {
+      if (commit.firstParentBranches.size > 0) {
         for (let i = 0; i < selected.length; i++) {
           if (commit.firstParentBranches.has(selected[i])) {
-            assignedCol = i;
+            commit.colIndex = i;
             break;
           }
         }
       }
-
-      commit.colIndex = assignedCol;
-      commit.subLane = 0;
     }
 
+    // 2. Para commits que son HEAD de una rama pero no cayeron en first-parent aún
+    for (const commit of commitMap.values()) {
+      if (commit.colIndex === -1 && commit.headBranches.length > 0) {
+        commit.colIndex = selected.indexOf(commit.headBranches[0]);
+      }
+    }
+
+    // 3. Propagar ramas de merge/desvío sin pisar columnas ya asignadas a cadenas first-parent
     const mergesAsc = Array.from(commitMap.values())
       .filter((c) => c.parents.length > 1 && c.colIndex !== -1)
       .sort((a, b) => a.timestamp - b.timestamp);
@@ -1947,6 +1947,7 @@
       }
     }
 
+    // 4. Respaldo para cualquier commit huérfano restante
     for (const commit of commitMap.values()) {
       if (commit.colIndex === -1) {
         let fallbackCol = 0;
@@ -2972,7 +2973,9 @@
       };
 
       const getCommitColor = (commit) =>
-        commit.subLane > 0 ? '#ffea00' : MGG.getBranchColor(commit.colIndex);
+        commit.subLane > 0 && commit.firstParentBranches.size === 0
+          ? '#ffea00'
+          : MGG.getBranchColor(commit.colIndex);
 
       svgRails = selected
         .map((_, idx) => {
