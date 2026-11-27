@@ -271,6 +271,8 @@
         `https://github.com/${owner}/${repo}/blob/${sha}/${MGG.encodeBranchPath(f.filename || '')}`
     }));
 
+    await hydrateMissingFilePatches(owner, repo, sha, files, true);
+
     const stats = {
       additions: res.data.stats?.additions ?? files.reduce((a, f) => a + f.additions, 0),
       deletions: res.data.stats?.deletions ?? files.reduce((a, f) => a + f.deletions, 0),
@@ -1621,12 +1623,20 @@
     const chunks = rawText.split(/^diff --git /m).slice(1);
     const files = [];
 
+    const unquoteGitPath = (p) => {
+      let s = String(p || '').trim();
+      if (s.startsWith('"') && s.endsWith('"')) {
+        s = s.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+      }
+      return s;
+    };
+
     for (const chunk of chunks) {
       const lines = chunk.split(/\r?\n/);
       const header = lines[0] || '';
-      const m = header.match(/^a\/(.+?)\s+b\/(.+)$/);
-      const oldPath = m ? m[1] : '';
-      const newPath = m ? m[2] : oldPath;
+      const m = header.match(/^"?a\/(.+?)"?\s+"?b\/(.+?)"?$/);
+      const oldPath = m ? unquoteGitPath(m[1]) : '';
+      const newPath = m ? unquoteGitPath(m[2]) : oldPath;
       if (!newPath) continue;
 
       let status = 'M';
@@ -1648,6 +1658,72 @@
         patch,
         blobUrl: `https://github.com/${owner}/${repo}/blob/${sha}/${MGG.encodeBranchPath(newPath)}`
       });
+    }
+
+    return files;
+  }
+
+  async function fetchRawCommitDiffText(owner, repo, sha, preferApi = false) {
+    if (preferApi) {
+      try {
+        const headers = { Accept: 'application/vnd.github.v3.diff' };
+        const activeTok = state.tokens[state.activeTokenIndex];
+        if (activeTok?.value) headers.Authorization = `Bearer ${activeTok.value}`;
+        const apiRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/commits/${sha}`, {
+          method: 'GET',
+          headers,
+          cache: 'no-store'
+        });
+        if (apiRes.ok) {
+          const txt = await apiRes.text();
+          if (txt && txt.includes('diff --git ')) return txt;
+        }
+      } catch (_) {
+        // continuar al fallback web
+      }
+    }
+
+    try {
+      const webRes = await fetch(`https://github.com/${owner}/${repo}/commit/${sha}.diff`, {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store'
+      });
+      if (webRes.ok) {
+        const txt = await webRes.text();
+        if (txt && txt.includes('diff --git ')) return txt;
+      }
+    } catch (_) {
+      // ignorar
+    }
+
+    return '';
+  }
+
+  async function hydrateMissingFilePatches(owner, repo, sha, files, preferApi = false) {
+    if (!Array.isArray(files) || files.length === 0) return files;
+    const hasMissingPatch = files.some((f) => !f.patch || !f.patch.trim());
+    if (!hasMissingPatch) return files;
+
+    const rawDiff = await fetchRawCommitDiffText(owner, repo, sha, preferApi);
+    if (!rawDiff) return files;
+
+    const parsed = parseRawUnifiedDiff(rawDiff, owner, repo, sha);
+    if (parsed.length === 0) return files;
+
+    const byPath = new Map();
+    for (const pf of parsed) {
+      byPath.set(pf.filename, pf);
+    }
+
+    for (const f of files) {
+      if (f.patch && f.patch.trim()) continue;
+      const match = byPath.get(f.filename);
+      if (match && match.patch) {
+        f.patch = match.patch;
+        if (!f.additions && match.additions) f.additions = match.additions;
+        if (!f.deletions && match.deletions) f.deletions = match.deletions;
+      }
     }
 
     return files;
@@ -1686,19 +1762,10 @@
     }
 
     if (files.length === 0) {
-      try {
-        const diffRes = await fetch(`https://github.com/${owner}/${repo}/commit/${sha}.diff`, {
-          method: 'GET',
-          credentials: 'same-origin',
-          cache: 'no-store'
-        });
-        if (diffRes.ok) {
-          const raw = await diffRes.text();
-          files = parseRawUnifiedDiff(raw, owner, repo, sha);
-        }
-      } catch (_) {
-        // ignorar
-      }
+      const raw = await fetchRawCommitDiffText(owner, repo, sha, false);
+      if (raw) files = parseRawUnifiedDiff(raw, owner, repo, sha);
+    } else {
+      await hydrateMissingFilePatches(owner, repo, sha, files, false);
     }
 
     const stats = {
