@@ -1873,7 +1873,7 @@
     });
   }
 
-function assignColumnsToCommits() {
+  function assignColumnsToCommits() {
     const selected = MGG.getOrderedSelectedBranches();
     const commitMap = state.commitMap;
     const branchHeadMap = state.branchHeadMap;
@@ -1894,7 +1894,7 @@ function assignColumnsToCommits() {
       commit.subLane = 0;
     }
 
-    // Marcar la cadena principal (first-parent) de cada rama seleccionada
+    // 1. Marcar la cadena principal (first-parent) de cada rama seleccionada
     selected.forEach((branchName) => {
       let currSha = branchHeadMap.get(branchName);
       const visited = new Set();
@@ -1906,7 +1906,7 @@ function assignColumnsToCommits() {
       }
     });
 
-    // 1. Asignar primero los commits que son parte de la cadena first-parent de alguna rama
+    // 2. Asignar primero los commits que forman parte de first-parent
     for (const commit of commitMap.values()) {
       if (commit.firstParentBranches.size > 0) {
         for (let i = 0; i < selected.length; i++) {
@@ -1918,14 +1918,26 @@ function assignColumnsToCommits() {
       }
     }
 
-    // 2. Asignar commits que son HEAD de una rama seleccionada si aún no tienen columna
+    // 3. Asignar commits que son HEAD de una rama seleccionada
     for (const commit of commitMap.values()) {
       if (commit.colIndex === -1 && commit.headBranches.length > 0) {
         commit.colIndex = selected.indexOf(commit.headBranches[0]);
       }
     }
 
-    // 3. Propagar ramas secundarias de merges (parents.slice(1)) sin pisar columnas first-parent
+    // 4. Respetar la pertenencia directa a una rama seleccionada (ej. d2df4f9 en CHG0120353)
+    for (const commit of commitMap.values()) {
+      if (commit.colIndex === -1 && commit.branches && commit.branches.size > 0) {
+        for (let i = 0; i < selected.length; i++) {
+          if (commit.branches.has(selected[i])) {
+            commit.colIndex = i;
+            break;
+          }
+        }
+      }
+    }
+
+    // 5. Propagar ramas secundarias de merges solo a commits sin columna asignada ni first-parent
     const mergesAsc = Array.from(commitMap.values())
       .filter((c) => c.parents.length > 1 && c.colIndex !== -1)
       .sort((a, b) => a.timestamp - b.timestamp);
@@ -1943,7 +1955,7 @@ function assignColumnsToCommits() {
           if (!sha || visited.has(sha) || !commitMap.has(sha)) continue;
           visited.add(sha);
           const node = commitMap.get(sha);
-          if (node.colIndex === -1) {
+          if (node.colIndex === -1 && node.firstParentBranches.size === 0) {
             node.colIndex = targetCol;
             node.subLane = 1;
             if (node.parents[0]) stack.push(node.parents[0]);
@@ -1952,17 +1964,10 @@ function assignColumnsToCommits() {
       }
     }
 
-    // 4. Respaldo para cualquier commit restante
+    // 6. Respaldo final para cualquier commit restante
     for (const commit of commitMap.values()) {
       if (commit.colIndex === -1) {
-        let fallbackCol = 0;
-        for (let i = selected.length - 1; i >= 0; i--) {
-          if (commit.branches.has(selected[i])) {
-            fallbackCol = i;
-            break;
-          }
-        }
-        commit.colIndex = fallbackCol;
+        commit.colIndex = 0;
         if (commit.firstParentBranches.size === 0) commit.subLane = 1;
       }
     }
@@ -3033,21 +3038,9 @@ function assignColumnsToCommits() {
           let midArrowSeg = null;
 
           if (!isCrossCol) {
-            const blocked = hasIntermediateNodeAtX(commits, rowIdx, parentRow, x1, getCommitX);
-            if (!blocked) {
-              d = `M ${x2} ${y2} L ${x1} ${y1}`;
-              arrowFromX = x1;
-              arrowFromY = y2;
-            } else {
-              isIntegrationEdge = true;
-              const slot = allocateDetourSlot(commit.colIndex, rowIdx, parentRow);
-              const maxRight = colStarts[commit.colIndex] + colWidths[commit.colIndex] - 6;
-              const detourX = Math.min(maxRight, x1 + slot * CONSTANTS.SUB_LANE_STEP);
-              if (isMergeEdge) edgeColor = '#ffea00';
-              d = buildFlowDetourPath(x2, y2, x1, y1, detourX);
-              arrowFromX = detourX;
-              arrowFromY = y1;
-            }
+            d = `M ${x2} ${y2} L ${x1} ${y1}`;
+            arrowFromX = x1;
+            arrowFromY = y2;
           } else if (isMergeEdge) {
             const srcColBlocked = hasIntermediateNodeAtX(commits, rowIdx, parentRow, x2, getCommitX);
             if (!srcColBlocked) {
