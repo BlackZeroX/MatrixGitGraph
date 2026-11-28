@@ -1135,7 +1135,7 @@
     renderTokenList();
   }
 
-  function renderTokenList() {
+function renderTokenList() {
     const listEl = ui.overlay?.querySelector('#mgg-token-list');
     if (!listEl) return;
 
@@ -1894,7 +1894,7 @@
       commit.subLane = 0;
     }
 
-    // 1. Marcar la cadena principal (first-parent) de cada rama seleccionada
+    // 1. Marcar la cadena principal (first-parent) de cada rama desde su HEAD real
     selected.forEach((branchName) => {
       let currSha = branchHeadMap.get(branchName);
       const visited = new Set();
@@ -1925,40 +1925,36 @@
       }
     }
 
-    // 4. Respetar la pertenencia directa a una rama seleccionada (ej. d2df4f9 en CHG0120353)
-    for (const commit of commitMap.values()) {
-      if (commit.colIndex === -1 && commit.branches && commit.branches.size > 0) {
-        for (let i = 0; i < selected.length; i++) {
-          if (commit.branches.has(selected[i])) {
-            commit.colIndex = i;
-            break;
-          }
-        }
-      }
-    }
-
-    // 5. Propagar ramas secundarias de merges solo a commits sin columna asignada ni first-parent
+    // 4. Propagar merges en orden cronológico (más antiguo primero) hacia sub-carriles de su columna
     const mergesAsc = Array.from(commitMap.values())
       .filter((c) => c.parents.length > 1 && c.colIndex !== -1)
       .sort((a, b) => a.timestamp - b.timestamp);
 
     for (const mergeCommit of mergesAsc) {
       const targetCol = mergeCommit.colIndex;
-      for (let pIdx = 1; pIdx < mergeCommit.parents.length; pIdx++) {
-        const secondaryHead = mergeCommit.parents[pIdx];
-        if (!secondaryHead || !commitMap.has(secondaryHead)) continue;
+      const stack = mergeCommit.parents.slice(1);
+      const visited = new Set();
+      while (stack.length > 0) {
+        const sha = stack.pop();
+        if (!sha || visited.has(sha) || !commitMap.has(sha)) continue;
+        visited.add(sha);
+        const node = commitMap.get(sha);
+        if (node.colIndex === -1 && node.firstParentBranches.size === 0) {
+          node.colIndex = targetCol;
+          node.subLane = 1;
+          for (const p of node.parents) stack.push(p);
+        }
+      }
+    }
 
-        const stack = [secondaryHead];
-        const visited = new Set();
-        while (stack.length > 0) {
-          const sha = stack.pop();
-          if (!sha || visited.has(sha) || !commitMap.has(sha)) continue;
-          visited.add(sha);
-          const node = commitMap.get(sha);
-          if (node.colIndex === -1 && node.firstParentBranches.size === 0) {
-            node.colIndex = targetCol;
-            node.subLane = 1;
-            if (node.parents[0]) stack.push(node.parents[0]);
+    // 5. Respetar pertenencia directa a una rama seleccionada para commits aún sin columna
+    for (const commit of commitMap.values()) {
+      if (commit.colIndex === -1 && commit.branches && commit.branches.size > 0) {
+        for (let i = 0; i < selected.length; i++) {
+          if (commit.branches.has(selected[i])) {
+            commit.colIndex = i;
+            if (commit.firstParentBranches.size === 0) commit.subLane = 1;
+            break;
           }
         }
       }
@@ -2024,7 +2020,7 @@
               branchName,
               state.commitsPerBranch,
               null,
-              branchHeadMap.get(branchName)
+              null
             );
             return { branchName, res };
           })
@@ -2088,10 +2084,16 @@
     for (const { branchName, res } of results) {
       const list = Array.isArray(res.data) ? res.data : [];
       if (list.length > 0) {
-        if (!branchHeadMap.get(branchName)) branchHeadMap.set(branchName, list[0].sha);
+        // Sobrescribir siempre con el HEAD real recién descargado (evita SHAs viejos tras PR/push)
+        branchHeadMap.set(branchName, list[0].sha);
         const bObj = state.branches.find((x) => x.name === branchName);
-        const headTs = MGG.parseTimestamp(list[0].commit?.committer?.date || list[0].commit?.author?.date);
-        if (bObj && headTs && headTs > (bObj.timestamp || 0)) bObj.timestamp = headTs;
+        if (bObj) {
+          bObj.commit = { ...(bObj.commit || {}), sha: list[0].sha };
+          const headTs = MGG.parseTimestamp(
+            list[0].commit?.committer?.date || list[0].commit?.author?.date
+          );
+          if (headTs && headTs > (bObj.timestamp || 0)) bObj.timestamp = headTs;
+        }
       }
       for (const item of list) {
         if (!commitBranchesMap.has(item.sha)) commitBranchesMap.set(item.sha, new Set());
@@ -2275,7 +2277,7 @@
   }
 
   // =====================================================================
-  // MOTOR DE TRAZADO SVG + FLECHAS DE FLUJO
+  // MOTOR DE TRAZADO SVG + FLECHAS DE FLUJO (SOURCETREE Y COLUMNAS CONSISTENTES)
   // =====================================================================
 
   function getTargetNodeStopDist(commit) {
@@ -2434,6 +2436,184 @@
     return { laneBySha, colorBySha, edgeLanes, maxLanes };
   }
 
+  // Motor de sub-carriles por columna: replica las bifurcaciones paralelas de SourceTree
+  // manteniendo el carril 0 exclusivo para la cadena first-parent de cada rama seleccionada.
+  function computeColumnSubLanes(commits, commitMap, selected) {
+    const colCount = Math.max(1, selected.length);
+    const colLanes = Array.from({ length: colCount }, () => [null]);
+    const maxSubLanes = Array.from({ length: colCount }, () => 1);
+    const subLaneBySha = new Map();
+    const colorBySha = new Map();
+    const edgeInfoMap = new Map();
+    const paletteLen = CONSTANTS.MATRIX_PALETTE.length;
+    let nextSubColor = 4; // Inicia en amarillo fosforescente para distinguir sub-ramas integradas
+
+    function allocColSubLane(colIdx) {
+      const lanes = colLanes[colIdx];
+      for (let i = 1; i < lanes.length; i++) {
+        if (lanes[i] === null) return i;
+      }
+      lanes.push(null);
+      return lanes.length - 1;
+    }
+
+    function pickSubColor(colIdx) {
+      let c = nextSubColor % paletteLen;
+      nextSubColor++;
+      if (c === colIdx % paletteLen) {
+        c = nextSubColor % paletteLen;
+        nextSubColor++;
+      }
+      return c;
+    }
+
+    for (const commit of commits) {
+      const colIdx = Math.max(0, Math.min(colCount - 1, commit.colIndex));
+      const lanes = colLanes[colIdx];
+      const isMainRail = commit.firstParentBranches.has(selected[colIdx]);
+
+      let subLane = 0;
+      let colorIdx = colIdx;
+
+      if (isMainRail) {
+        subLane = 0;
+        colorIdx = colIdx;
+      } else {
+        const existingSub = lanes.findIndex((slot, idx) => idx >= 1 && slot && slot.sha === commit.sha);
+        if (existingSub !== -1) {
+          subLane = existingSub;
+          colorIdx = lanes[existingSub].colorIdx;
+        } else {
+          subLane = allocColSubLane(colIdx);
+          colorIdx = pickSubColor(colIdx);
+        }
+      }
+
+      // Liberar reservas duplicadas de este commit en cualquier sub-carril de su columna
+      for (let i = 0; i < lanes.length; i++) {
+        if (i !== subLane && lanes[i] && lanes[i].sha === commit.sha) {
+          lanes[i] = null;
+        }
+      }
+
+      subLaneBySha.set(commit.sha, subLane);
+      const nodeColor = MGG.getBranchColor(colorIdx);
+      colorBySha.set(commit.sha, nodeColor);
+
+      const validParents = commit.parents.filter((p) => p && p !== commit.sha && commitMap.has(p));
+
+      if (validParents.length === 0) {
+        lanes[subLane] = null;
+      } else {
+        const p0 = validParents[0];
+        const p0Node = commitMap.get(p0);
+        const p0Col = Math.max(0, Math.min(colCount - 1, p0Node.colIndex));
+
+        if (p0Col === colIdx) {
+          const p0IsMain = p0Node.firstParentBranches.has(selected[colIdx]);
+          if (subLane === 0 && p0IsMain) {
+            lanes[0] = { sha: p0, colorIdx: colIdx };
+            edgeInfoMap.set(`${commit.sha}->${p0}`, {
+              sameCol: true,
+              passSubLane: 0,
+              color: nodeColor,
+              isMerge: false
+            });
+          } else if (subLane > 0 && !p0IsMain) {
+            const existingP0 = lanes.findIndex(
+              (slot, idx) => idx >= 1 && idx !== subLane && slot && slot.sha === p0
+            );
+            if (existingP0 === -1) {
+              lanes[subLane] = { sha: p0, colorIdx };
+            } else {
+              lanes[subLane] = null;
+            }
+            edgeInfoMap.set(`${commit.sha}->${p0}`, {
+              sameCol: true,
+              passSubLane: subLane,
+              color: nodeColor,
+              isMerge: false
+            });
+          } else {
+            // Sub-rama que se reincorpora al riel principal (0) o viceversa
+            edgeInfoMap.set(`${commit.sha}->${p0}`, {
+              sameCol: true,
+              passSubLane: subLane,
+              color: nodeColor,
+              isMerge: false
+            });
+            lanes[subLane] = null;
+          }
+        } else {
+          // Fork desde otra columna seleccionada
+          lanes[subLane] = null;
+          edgeInfoMap.set(`${commit.sha}->${p0}`, {
+            sameCol: false,
+            passSubLane: subLane,
+            color: nodeColor,
+            isMerge: false
+          });
+        }
+
+        // Padres secundarios de merge (pIdx >= 1)
+        for (let pIdx = 1; pIdx < validParents.length; pIdx++) {
+          const mp = validParents[pIdx];
+          const mpNode = commitMap.get(mp);
+          const mpCol = Math.max(0, Math.min(colCount - 1, mpNode.colIndex));
+
+          if (mpCol === colIdx) {
+            const mpIsMain = mpNode.firstParentBranches.has(selected[colIdx]);
+            if (mpIsMain) {
+              edgeInfoMap.set(`${commit.sha}->${mp}`, {
+                sameCol: true,
+                passSubLane: 0,
+                color: MGG.getBranchColor(colIdx),
+                isMerge: true
+              });
+            } else {
+              const existingMp = lanes.findIndex((slot, idx) => idx >= 1 && slot && slot.sha === mp);
+              if (existingMp !== -1) {
+                edgeInfoMap.set(`${commit.sha}->${mp}`, {
+                  sameCol: true,
+                  passSubLane: existingMp,
+                  color: MGG.getBranchColor(lanes[existingMp].colorIdx),
+                  isMerge: true
+                });
+              } else {
+                const newSub = allocColSubLane(colIdx);
+                const mpColorIdx = pickSubColor(colIdx);
+                lanes[newSub] = { sha: mp, colorIdx: mpColorIdx };
+                edgeInfoMap.set(`${commit.sha}->${mp}`, {
+                  sameCol: true,
+                  passSubLane: newSub,
+                  color: MGG.getBranchColor(mpColorIdx),
+                  isMerge: true
+                });
+              }
+            }
+          } else {
+            // Merge entre distintas columnas seleccionadas (ej. PR entre ramas)
+            edgeInfoMap.set(`${commit.sha}->${mp}`, {
+              sameCol: false,
+              passSubLane: null,
+              color: null,
+              isMerge: true
+            });
+          }
+        }
+      }
+
+      while (lanes.length > 1 && lanes[lanes.length - 1] === null) {
+        lanes.pop();
+      }
+      if (lanes.length > maxSubLanes[colIdx]) {
+        maxSubLanes[colIdx] = lanes.length;
+      }
+    }
+
+    return { subLaneBySha, colorBySha, edgeInfoMap, maxSubLanes };
+  }
+
   function buildMergeFlowPath(x2, y2, x1, y1) {
     const dx = x1 - x2;
     const dir = dx >= 0 ? 1 : -1;
@@ -2507,7 +2687,7 @@
         if (headerEl) headerEl.draggable = false;
 
         const startX = e.clientX;
-        const startW = MGG.getBranchWidth(branchName);
+        const startW = headerEl ? headerEl.getBoundingClientRect().width : MGG.getBranchWidth(branchName);
         handle.classList.add('mgg-resizing');
         document.body.classList.add('mgg-no-select');
 
@@ -2932,7 +3112,20 @@
         }
       });
     } else {
-      const colWidths = selected.map((name) => MGG.getBranchWidth(name));
+      const { subLaneBySha, colorBySha, edgeInfoMap, maxSubLanes } = computeColumnSubLanes(
+        commits,
+        state.commitMap,
+        selected
+      );
+
+      // Expandir automáticamente el ancho mínimo de cualquier columna que tenga sub-carriles paralelos
+      const colWidths = selected.map((name, idx) => {
+        const userW = MGG.getBranchWidth(name);
+        const lanesNeeded = maxSubLanes[idx] || 1;
+        const minForLanes = 32 + (lanesNeeded - 1) * CONSTANTS.SUB_LANE_STEP;
+        return Math.max(userW, minForLanes);
+      });
+
       const colStarts = [];
       let acc = 0;
       for (let i = 0; i < colWidths.length; i++) {
@@ -2969,23 +3162,28 @@
 
       const getColBaseX = (colIdx) => {
         const idx = Math.max(0, Math.min(selected.length - 1, colIdx));
-        return colStarts[idx] + Math.round(colWidths[idx] / 2) - 6;
+        const lanesNeeded = maxSubLanes[idx] || 1;
+        if (lanesNeeded <= 1) {
+          return colStarts[idx] + Math.round(colWidths[idx] / 2);
+        }
+        const totalSpan = (lanesNeeded - 1) * CONSTANTS.SUB_LANE_STEP;
+        return colStarts[idx] + Math.max(16, Math.round((colWidths[idx] - totalSpan) / 2));
+      };
+
+      const getSubLaneX = (colIdx, subLane) => {
+        const idx = Math.max(0, Math.min(selected.length - 1, colIdx));
+        const maxRight = colStarts[idx] + colWidths[idx] - 10;
+        return Math.min(maxRight, getColBaseX(idx) + (subLane || 0) * CONSTANTS.SUB_LANE_STEP);
       };
 
       const getCommitX = (commit) => {
         const idx = Math.max(0, Math.min(selected.length - 1, commit.colIndex));
-        const baseX = getColBaseX(idx);
-        if (commit.subLane > 0) {
-          const offset = Math.min(CONSTANTS.SUB_LANE_STEP, Math.max(9, Math.floor(colWidths[idx] * 0.24)));
-          return baseX + offset;
-        }
-        return baseX;
+        const sub = subLaneBySha.get(commit.sha) ?? 0;
+        return getSubLaneX(idx, sub);
       };
 
       const getCommitColor = (commit) =>
-        commit.subLane > 0 && commit.firstParentBranches.size === 0
-          ? '#ffea00'
-          : MGG.getBranchColor(commit.colIndex);
+        colorBySha.get(commit.sha) || MGG.getBranchColor(commit.colIndex);
 
       svgRails = selected
         .map((_, idx) => {
@@ -3008,6 +3206,7 @@
       }
 
       commits.forEach((commit, rowIdx) => {
+        const myCol = Math.max(0, Math.min(selected.length - 1, commit.colIndex));
         const x1 = getCommitX(commit);
         const y1 = rowIdx * ROW_HEIGHT + ROW_HEIGHT / 2;
         const commitColor = getCommitColor(commit);
@@ -3024,24 +3223,55 @@
           }
 
           const parentCommit = commits[parentRow];
+          const parentCol = Math.max(0, Math.min(selected.length - 1, parentCommit.colIndex));
           const x2 = getCommitX(parentCommit);
           const y2 = parentRow * ROW_HEIGHT + ROW_HEIGHT / 2;
           const parentColor = getCommitColor(parentCommit);
           const isMergeEdge = pIdx > 0;
-          const isCrossCol = Math.abs(x1 - x2) >= 2;
-          let edgeColor = isMergeEdge ? parentColor : commitColor;
-          let isIntegrationEdge = isMergeEdge || isCrossCol;
+          const isSameCol = myCol === parentCol;
+          const edgeInfo = edgeInfoMap.get(`${commit.sha}->${parentSha}`);
+
+          let edgeColor = (edgeInfo && edgeInfo.color) || (isMergeEdge ? parentColor : commitColor);
+          let isIntegrationEdge = isMergeEdge || Math.abs(x1 - x2) >= 2;
 
           let d;
           let arrowFromX = x2;
           let arrowFromY = y2;
           let midArrowSeg = null;
 
-          if (!isCrossCol) {
-            d = `M ${x2} ${y2} L ${x1} ${y1}`;
-            arrowFromX = x1;
-            arrowFromY = y2;
+          if (isSameCol) {
+            const passSub =
+              edgeInfo && edgeInfo.passSubLane !== null && edgeInfo.passSubLane !== undefined
+                ? edgeInfo.passSubLane
+                : isMergeEdge
+                  ? subLaneBySha.get(parentSha) ?? 0
+                  : subLaneBySha.get(commit.sha) ?? 0;
+            const passX = getSubLaneX(myCol, passSub);
+
+            if (Math.abs(x1 - x2) < 1 && Math.abs(passX - x1) < 1) {
+              d = `M ${x2} ${y2} L ${x1} ${y1}`;
+              arrowFromX = x1;
+              arrowFromY = y2;
+            } else if (Math.abs(passX - x1) >= 1 && Math.abs(passX - x2) >= 1) {
+              isIntegrationEdge = true;
+              d = buildFlowDetourPath(x2, y2, x1, y1, passX);
+              arrowFromX = passX;
+              arrowFromY = y1;
+            } else if (Math.abs(passX - x2) < 1) {
+              // Sub-rama que sube por x2 y converge hacia el nodo merge en x1
+              isIntegrationEdge = true;
+              d = buildMergeFlowPath(x2, y2, x1, y1);
+              arrowFromX = x2;
+              arrowFromY = y1;
+            } else {
+              // Sub-rama que sale desde x2 hacia su propio sub-carril x1
+              isIntegrationEdge = true;
+              d = buildBranchFlowPath(x2, y2, x1, y1);
+              arrowFromX = x1;
+              arrowFromY = y2;
+            }
           } else if (isMergeEdge) {
+            // Merge entre columnas distintas (PR)
             const srcColBlocked = hasIntermediateNodeAtX(commits, rowIdx, parentRow, x2, getCommitX);
             if (!srcColBlocked) {
               d = buildMergeFlowPath(x2, y2, x1, y1);
@@ -3049,10 +3279,10 @@
               arrowFromY = y1;
               midArrowSeg = [x2, y1, x1, y1];
             } else {
-              const slot = allocateDetourSlot(parentCommit.colIndex, rowIdx, parentRow);
+              const slot = allocateDetourSlot(parentCol, rowIdx, parentRow);
               const dirSide = x1 < x2 ? -1 : 1;
-              const minLeft = colStarts[parentCommit.colIndex] + 6;
-              const maxRight = colStarts[parentCommit.colIndex] + colWidths[parentCommit.colIndex] - 6;
+              const minLeft = colStarts[parentCol] + 6;
+              const maxRight = colStarts[parentCol] + colWidths[parentCol] - 6;
               const detourX = Math.max(
                 minLeft,
                 Math.min(maxRight, x2 + dirSide * slot * CONSTANTS.SUB_LANE_STEP)
@@ -3063,6 +3293,7 @@
               midArrowSeg = [detourX, y1, x1, y1];
             }
           } else {
+            // Bifurcación (fork) desde otra columna
             const dstColBlocked = hasIntermediateNodeAtX(commits, rowIdx, parentRow, x1, getCommitX);
             if (!dstColBlocked) {
               d = buildBranchFlowPath(x2, y2, x1, y1);
@@ -3070,10 +3301,10 @@
               arrowFromY = y2;
               midArrowSeg = [x2, y2, x1, y2];
             } else {
-              const slot = allocateDetourSlot(commit.colIndex, rowIdx, parentRow);
+              const slot = allocateDetourSlot(myCol, rowIdx, parentRow);
               const dirSide = x2 < x1 ? -1 : 1;
-              const minLeft = colStarts[commit.colIndex] + 6;
-              const maxRight = colStarts[commit.colIndex] + colWidths[commit.colIndex] - 6;
+              const minLeft = colStarts[myCol] + 6;
+              const maxRight = colStarts[myCol] + colWidths[myCol] - 6;
               const detourX = Math.max(
                 minLeft,
                 Math.min(maxRight, x1 + dirSide * slot * CONSTANTS.SUB_LANE_STEP)
@@ -3085,9 +3316,9 @@
             }
           }
 
-          if (isCrossCol || d.includes('Q')) {
+          if (!isSameCol || Math.abs(x1 - x2) >= 1 || d.includes('Q')) {
             svgUnderlays.push(
-              `<path d="${d}" fill="none" stroke="#040805" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round" />`
+              `<path d="${d}" fill="none" stroke="#040805" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" />`
             );
           }
 
@@ -3096,7 +3327,7 @@
           );
 
           if (shouldDrawArrow(isIntegrationEdge)) {
-            const arrowSize = isIntegrationEdge ? 6.6 : 5.2;
+            const arrowSize = isIntegrationEdge ? 6.2 : 5.0;
             const poly = buildArrowPolygon(
               arrowFromX,
               arrowFromY,
