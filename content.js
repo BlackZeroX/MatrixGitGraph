@@ -1878,6 +1878,9 @@ function renderTokenList() {
     const commitMap = state.commitMap;
     const branchHeadMap = state.branchHeadMap;
 
+    const colIndexByBranch = new Map();
+    selected.forEach((branchName, idx) => colIndexByBranch.set(branchName, idx));
+
     const headBranchesBySha = new Map();
     selected.forEach((branchName) => {
       const headSha = branchHeadMap.get(branchName);
@@ -1895,6 +1898,7 @@ function renderTokenList() {
     }
 
     // 1. Marcar la cadena principal (first-parent) de cada rama desde su HEAD real
+    const firstParentSets = new Map();
     selected.forEach((branchName) => {
       let currSha = branchHeadMap.get(branchName);
       const visited = new Set();
@@ -1904,14 +1908,34 @@ function renderTokenList() {
         node.firstParentBranches.add(branchName);
         currSha = node.parents[0] || null;
       }
+      firstParentSets.set(branchName, visited);
     });
 
-    // 2. Asignar primero los commits que forman parte de first-parent
+    // Prioridad de pertenencia independiente del orden visual de las columnas
+    const trunkPriority = ['main', 'master', 'develop', 'dev'];
+    const ownershipOrder = [...selected].sort((a, b) => {
+      const pa = trunkPriority.indexOf(a.toLowerCase());
+      const pb = trunkPriority.indexOf(b.toLowerCase());
+      if (pa !== -1 && pb !== -1) return pa - pb;
+      if (pa !== -1) return -1;
+      if (pb !== -1) return 1;
+
+      const headA = branchHeadMap.get(a);
+      const headB = branchHeadMap.get(b);
+      const aIsBaseOfB = Boolean(headA && firstParentSets.get(b)?.has(headA));
+      const bIsBaseOfA = Boolean(headB && firstParentSets.get(a)?.has(headB));
+      if (aIsBaseOfB && !bIsBaseOfA) return -1;
+      if (bIsBaseOfA && !aIsBaseOfB) return 1;
+
+      return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    // 2. Asignar primero los commits que forman parte de first-parent respetando ownershipOrder
     for (const commit of commitMap.values()) {
       if (commit.firstParentBranches.size > 0) {
-        for (let i = 0; i < selected.length; i++) {
-          if (commit.firstParentBranches.has(selected[i])) {
-            commit.colIndex = i;
+        for (const branchName of ownershipOrder) {
+          if (commit.firstParentBranches.has(branchName)) {
+            commit.colIndex = colIndexByBranch.get(branchName);
             break;
           }
         }
@@ -1921,7 +1945,9 @@ function renderTokenList() {
     // 3. Asignar commits que son HEAD de una rama seleccionada
     for (const commit of commitMap.values()) {
       if (commit.colIndex === -1 && commit.headBranches.length > 0) {
-        commit.colIndex = selected.indexOf(commit.headBranches[0]);
+        const ownerBranch =
+          ownershipOrder.find((b) => commit.headBranches.includes(b)) || commit.headBranches[0];
+        commit.colIndex = colIndexByBranch.get(ownerBranch) ?? 0;
       }
     }
 
@@ -1950,9 +1976,9 @@ function renderTokenList() {
     // 5. Respetar pertenencia directa a una rama seleccionada para commits aún sin columna
     for (const commit of commitMap.values()) {
       if (commit.colIndex === -1 && commit.branches && commit.branches.size > 0) {
-        for (let i = 0; i < selected.length; i++) {
-          if (commit.branches.has(selected[i])) {
-            commit.colIndex = i;
+        for (const branchName of ownershipOrder) {
+          if (commit.branches.has(branchName)) {
+            commit.colIndex = colIndexByBranch.get(branchName);
             if (commit.firstParentBranches.size === 0) commit.subLane = 1;
             break;
           }
@@ -1961,9 +1987,10 @@ function renderTokenList() {
     }
 
     // 6. Respaldo final para cualquier commit restante
+    const defaultColIdx = colIndexByBranch.get(ownershipOrder[0]) ?? 0;
     for (const commit of commitMap.values()) {
       if (commit.colIndex === -1) {
-        commit.colIndex = 0;
+        commit.colIndex = defaultColIdx;
         if (commit.firstParentBranches.size === 0) commit.subLane = 1;
       }
     }
