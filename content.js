@@ -1873,7 +1873,7 @@
     });
   }
 
-  function assignColumnsToCommits() {
+function assignColumnsToCommits() {
     const selected = MGG.getOrderedSelectedBranches();
     const commitMap = state.commitMap;
     const branchHeadMap = state.branchHeadMap;
@@ -1906,7 +1906,7 @@
       }
     });
 
-    // 1. Asignar primero los commits que pertenecen a la cadena first-parent de alguna rama
+    // 1. Asignar primero los commits que son parte de la cadena first-parent de alguna rama
     for (const commit of commitMap.values()) {
       if (commit.firstParentBranches.size > 0) {
         for (let i = 0; i < selected.length; i++) {
@@ -1918,36 +1918,41 @@
       }
     }
 
-    // 2. Para commits que son HEAD de una rama pero no cayeron en first-parent aún
+    // 2. Asignar commits que son HEAD de una rama seleccionada si aún no tienen columna
     for (const commit of commitMap.values()) {
       if (commit.colIndex === -1 && commit.headBranches.length > 0) {
         commit.colIndex = selected.indexOf(commit.headBranches[0]);
       }
     }
 
-    // 3. Propagar ramas de merge/desvío sin pisar columnas ya asignadas a cadenas first-parent
+    // 3. Propagar ramas secundarias de merges (parents.slice(1)) sin pisar columnas first-parent
     const mergesAsc = Array.from(commitMap.values())
       .filter((c) => c.parents.length > 1 && c.colIndex !== -1)
       .sort((a, b) => a.timestamp - b.timestamp);
 
     for (const mergeCommit of mergesAsc) {
       const targetCol = mergeCommit.colIndex;
-      const stack = mergeCommit.parents.slice(1);
-      const visited = new Set();
-      while (stack.length > 0) {
-        const sha = stack.pop();
-        if (!sha || visited.has(sha) || !commitMap.has(sha)) continue;
-        visited.add(sha);
-        const node = commitMap.get(sha);
-        if (node.colIndex === -1) {
-          node.colIndex = targetCol;
-          node.subLane = 1;
-          for (const p of node.parents) stack.push(p);
+      for (let pIdx = 1; pIdx < mergeCommit.parents.length; pIdx++) {
+        const secondaryHead = mergeCommit.parents[pIdx];
+        if (!secondaryHead || !commitMap.has(secondaryHead)) continue;
+
+        const stack = [secondaryHead];
+        const visited = new Set();
+        while (stack.length > 0) {
+          const sha = stack.pop();
+          if (!sha || visited.has(sha) || !commitMap.has(sha)) continue;
+          visited.add(sha);
+          const node = commitMap.get(sha);
+          if (node.colIndex === -1) {
+            node.colIndex = targetCol;
+            node.subLane = 1;
+            if (node.parents[0]) stack.push(node.parents[0]);
+          }
         }
       }
     }
 
-    // 4. Respaldo para cualquier commit huérfano restante
+    // 4. Respaldo para cualquier commit restante
     for (const commit of commitMap.values()) {
       if (commit.colIndex === -1) {
         let fallbackCol = 0;
